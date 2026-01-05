@@ -1,18 +1,12 @@
 "use client"; // This directive makes the component a Client Component
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Activity,
-  MessageSquare,
   Cpu,
   Layout,
-  Users,
-  DollarSign,
-  Send,
   Zap,
-  Menu,
   Bell,
-  Search,
   ArrowRight
 } from 'lucide-react';
 
