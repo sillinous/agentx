@@ -44,9 +44,9 @@ test.describe('Home Page', () => {
     // Expect a loading indicator (bouncing circles) to appear immediately after clicking submit
     await expect(page.locator('.animate-bounce').first()).toBeVisible();
 
-    // Start waiting for the API response
-    const response = await page.waitForResponse(
-      (response) => response.url().includes('/api/agent') && response.request().method() === 'POST',
+    // Wait for the API response to complete
+    await page.waitForResponse(
+      (resp) => resp.url().includes('/api/agent') && resp.request().method() === 'POST',
     );
 
     // Wait for the loading indicator to disappear
