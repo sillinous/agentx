@@ -114,6 +114,26 @@ def read_root():
     }
 
 
+# --- Health Check Endpoint ---
+@app.get("/health")
+def health_check():
+    """Health check endpoint for monitoring and orchestration."""
+    from database_utils import check_database_health
+
+    db_health = check_database_health()
+
+    return {
+        "status": "healthy" if db_health["connected"] else "degraded",
+        "version": "1.0.0",
+        "database": db_health,
+        "agents": {
+            "scribe": "ready",
+            "architect": "ready",
+            "sentry": "ready",
+        },
+    }
+
+
 # --- Auth Endpoints ---
 @app.post("/auth/dev-token", response_model=Token)
 async def create_dev_token():

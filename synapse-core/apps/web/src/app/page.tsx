@@ -21,6 +21,15 @@ import {
 // Primary: #00f0ff (Approximated as cyan-400)
 // Surface: #161b22 (Approximated as slate-900/50)
 
+// Agent configuration
+const AGENTS = {
+  scribe: { name: 'Scribe', description: 'Content generation', color: 'cyan' },
+  architect: { name: 'Architect', description: 'UI components', color: 'purple' },
+  sentry: { name: 'Sentry', description: 'Analytics', color: 'amber' },
+} as const;
+
+type AgentKey = keyof typeof AGENTS;
+
 const SynapseInterface = () => {
   // --- STATE MANAGEMENT ---
   const [mode, setMode] = useState('control'); // 'control' or 'command'
@@ -29,6 +38,8 @@ const SynapseInterface = () => {
     { sender: 'system', text: 'Genesis Complete. Agents are online. Waiting for command...' }
   ]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<AgentKey>('scribe');
+  const [threadId] = useState(() => `thread-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
 
   // --- MOCK DATA FOR DASHBOARD ---
   const kpiData = [
@@ -49,25 +60,20 @@ const SynapseInterface = () => {
     if (!chatInput.trim()) return;
 
     const userMessage = chatInput;
-    const newHistory = [...chatHistory, { sender: 'user', text: userMessage }];
-    setChatHistory(newHistory);
+    const agentInfo = AGENTS[selectedAgent];
+    setChatHistory(prev => [...prev, { sender: 'user', text: userMessage }]);
     setChatInput('');
     setIsProcessing(true);
 
     try {
-      // For now, use a mock user_id and a fixed thread_id
-      const mockUserId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"; // This should eventually come from user session
-      const threadId = "synapse-default-thread"; // This could be dynamic per conversation
-
       const response = await fetch('/api/agent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          agent: 'scribe', // Assuming we are invoking the scribe agent for now
+          agent: selectedAgent,
           thread_id: threadId,
-          user_id: mockUserId,
           prompt: userMessage,
         }),
       });
@@ -78,9 +84,26 @@ const SynapseInterface = () => {
       }
 
       const data = await response.json();
+
+      // Format the response based on type
+      let responseText: string;
+      if (typeof data.response === 'object') {
+        if (data.response.type === 'text') {
+          responseText = data.response.content;
+        } else if (data.response.type === 'component') {
+          responseText = `Component generated:\n\`\`\`tsx\n${data.response.code}\n\`\`\`\n\n${data.response.description || ''}`;
+        } else if (data.response.type === 'analytics_report') {
+          responseText = `Analytics Report:\n${data.response.insights}\n\nRecommendations: ${data.response.recommendations}`;
+        } else {
+          responseText = JSON.stringify(data.response, null, 2);
+        }
+      } else {
+        responseText = data.response || 'No response from agent.';
+      }
+
       setChatHistory(prev => [...prev, {
         sender: 'system',
-        text: data.response || 'No response from agent.'
+        text: `[${agentInfo.name}] ${responseText}`
       }]);
 
     } catch (error) {
@@ -219,14 +242,38 @@ const SynapseInterface = () => {
                 )}
               </div>
 
-              {/* Input Area */}
-              <div className="p-4 border-t border-white/10 bg-slate-900">
+              {/* Agent Selector & Input Area */}
+              <div className="p-4 border-t border-white/10 bg-slate-900 space-y-3">
+                {/* Agent Selector */}
+                <div className="flex gap-2">
+                  {(Object.keys(AGENTS) as AgentKey[]).map((agentKey) => {
+                    const agent = AGENTS[agentKey];
+                    const isSelected = selectedAgent === agentKey;
+                    const colorClasses = {
+                      cyan: isSelected ? 'bg-cyan-600 text-white border-cyan-500' : 'border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10',
+                      purple: isSelected ? 'bg-purple-600 text-white border-purple-500' : 'border-purple-500/30 text-purple-400 hover:bg-purple-500/10',
+                      amber: isSelected ? 'bg-amber-600 text-white border-amber-500' : 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10',
+                    };
+                    return (
+                      <button
+                        key={agentKey}
+                        type="button"
+                        onClick={() => setSelectedAgent(agentKey)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${colorClasses[agent.color]}`}
+                      >
+                        {agent.name}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Input Form */}
                 <form onSubmit={handleCommandSubmit} className="relative">
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Command the swarm..."
+                    placeholder={`Ask ${AGENTS[selectedAgent].name} anything...`}
                     className="w-full bg-slate-800 text-white placeholder-slate-500 rounded-xl py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 border border-white/5 transition-all"
                   />
                   <button type="submit" className="absolute right-2 top-2 p-1.5 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-white transition-colors">
