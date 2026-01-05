@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ArrowRight, Zap, TrendingUp, Shield, Brain, Database, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { UserMenu } from '@/components/UserMenu';
 
 export default function HomePage() {
   const [url, setUrl] = useState('');
@@ -12,18 +13,16 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-2">
+          <Link href="/" className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
               <Zap className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-bold gradient-text">FlipFlow</span>
-          </div>
+          </Link>
           <div className="flex items-center space-x-6">
             <Link href="#features" className="text-sm text-gray-600 hover:text-gray-900">Features</Link>
-            <Link href="#pricing" className="text-sm text-gray-600 hover:text-gray-900">Pricing</Link>
-            <Link href="/analyze" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-              Start Analyzing
-            </Link>
+            <Link href="/pricing" className="text-sm text-gray-600 hover:text-gray-900">Pricing</Link>
+            <UserMenu />
           </div>
         </div>
       </nav>
