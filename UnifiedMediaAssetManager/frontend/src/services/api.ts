@@ -156,7 +156,7 @@ function getAuthToken(): string | null {
     return process.env.NEXT_PUBLIC_AUTH_TOKEN || null;
 }
 
-function authHeaders() {
+function authHeaders(): Record<string, string> {
     const token = getAuthToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
 }

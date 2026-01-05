@@ -20,7 +20,8 @@ interface TraitTemplate {
   label: string;
   type: string;
   category: string;
-  description: string;
+  description?: string;
+  placeholder?: string;
 }
 
 export default function EntityTraitsPage() {
@@ -134,6 +135,7 @@ export default function EntityTraitsPage() {
         trait_type: newTraitType,
         trait_category: newTraitCategory,
         is_ai_visible: newTraitAiVisible,
+        display_order: traits.length,
       });
 
       setTraits([...traits, newTrait]);

@@ -1,8 +1,10 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useState, createElement } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stage, useGLTF, Html, useProgress } from '@react-three/drei';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import * as THREE from 'three';
 
 // Loading component shown while model loads
 function Loader() {
@@ -20,7 +22,12 @@ function Loader() {
 // 3D Model component that loads GLTF/GLB files
 function Model({ url }: { url: string }) {
   const { scene } = useGLTF(url);
-  return <primitive object={scene} />;
+  // Clone the scene to avoid issues with reusing the same scene object
+  const clonedScene = scene.clone();
+  // Use createElement to bypass JSX type checking for R3F elements
+  return createElement('group', null,
+    createElement('primitive', { object: clonedScene })
+  );
 }
 
 // Error boundary fallback
