@@ -1,0 +1,65 @@
+# Production Dockerfile for Synapse Backend
+# Multi-stage build for smaller image size
+
+# Stage 1: Builder
+FROM python:3.12-slim as builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry
+RUN pip install --no-cache-dir poetry==1.8.0
+
+# Copy dependency files
+COPY pyproject.toml poetry.lock ./
+
+# Export requirements (without dev dependencies)
+RUN poetry export -f requirements.txt --output requirements.txt --without-hashes --only main
+
+# Stage 2: Production
+FROM python:3.12-slim as production
+
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 1000 synapse
+
+# Copy requirements from builder
+COPY --from=builder /app/requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY --chown=synapse:synapse . .
+
+# Copy other agent packages (for imports)
+COPY --chown=synapse:synapse ../builder-agent/architect.py /app/agents/architect.py
+COPY --chown=synapse:synapse ../analytics-agent/sentry.py /app/agents/sentry.py
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=8000
+
+# Switch to non-root user
+USER synapse
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run with gunicorn for production
+CMD ["python", "-m", "gunicorn", "main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
