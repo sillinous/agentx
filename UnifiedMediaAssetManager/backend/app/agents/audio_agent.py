@@ -1,5 +1,7 @@
 """AudioAgent - Handles audio processing (transcription, TTS, analysis)."""
 import logging
+import os
+import uuid
 from typing import Dict, Any, Optional
 from datetime import datetime
 from .base_agent import BaseAgent
@@ -34,7 +36,9 @@ class MockAudioProvider(AudioProviderBase):
         logger.info(f"Mock transcription of: {audio_url}")
         return {
             "success": True,
-            "text": "This is a mock transcription of the audio file. In production, this would contain the actual transcribed text from Whisper or another service.",
+            "text": "This is a mock transcription of the audio file. "
+                    "In production, this would contain the actual transcribed "
+                    "text from Whisper or another service.",
             "language": "en",
             "duration": 30.5,
             "words": [
@@ -49,7 +53,6 @@ class MockAudioProvider(AudioProviderBase):
     async def text_to_speech(self, text: str, voice: str = "default") -> Dict[str, Any]:
         """Mock TTS - returns sample audio URL."""
         logger.info(f"Mock TTS for text: {text[:50]}... with voice: {voice}")
-        import uuid
         audio_id = uuid.uuid4().hex[:12]
         return {
             "success": True,
@@ -79,8 +82,96 @@ class MockAudioProvider(AudioProviderBase):
         }
 
 
+class ElevenLabsTTSProvider(AudioProviderBase):
+    """ElevenLabs provider wrapper for text-to-speech."""
+
+    def __init__(self, api_key: Optional[str] = None):
+        super().__init__(api_key)
+        self._provider = None
+
+    def _get_provider(self):
+        """Lazy-load ElevenLabs provider."""
+        if self._provider is None:
+            from app.providers.elevenlabs import ElevenLabsProvider
+            self._provider = ElevenLabsProvider(api_key=self.api_key)
+        return self._provider
+
+    async def transcribe(self, audio_url: str) -> Dict[str, Any]:
+        """ElevenLabs doesn't support transcription, fall back to mock."""
+        mock = MockAudioProvider()
+        return await mock.transcribe(audio_url)
+
+    async def text_to_speech(self, text: str, voice: str = "default") -> Dict[str, Any]:
+        """Generate TTS using ElevenLabs."""
+        try:
+            provider = self._get_provider()
+            result = await provider.text_to_speech(
+                text=text,
+                voice=voice,
+            )
+
+            # Save audio data to a file or return base64
+            # For now, we'll return metadata and indicate success
+            if result.get("success"):
+                audio_id = uuid.uuid4().hex[:12]
+                return {
+                    "success": True,
+                    "audio_data": result.get("audio_data"),  # Raw bytes
+                    "audio_url": f"/media/audio/tts/{audio_id}.mp3",
+                    "duration": result.get("duration", 0),
+                    "voice": result.get("voice_id"),
+                    "format": "mp3",
+                    "character_count": result.get("character_count", len(text)),
+                }
+            return result
+
+        except Exception as e:
+            logger.error(f"ElevenLabs TTS failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def analyze_audio(self, audio_url: str) -> Dict[str, Any]:
+        """Use mock for audio analysis."""
+        mock = MockAudioProvider()
+        return await mock.analyze_audio(audio_url)
+
+
+class OpenAIWhisperAPIProvider(AudioProviderBase):
+    """OpenAI Whisper API provider for transcription."""
+
+    def __init__(self, api_key: Optional[str] = None):
+        super().__init__(api_key)
+        self._provider = None
+
+    def _get_provider(self):
+        """Lazy-load OpenAI Whisper provider."""
+        if self._provider is None:
+            from app.providers.openai_whisper import OpenAIWhisperProvider
+            self._provider = OpenAIWhisperProvider(api_key=self.api_key)
+        return self._provider
+
+    async def transcribe(self, audio_url: str) -> Dict[str, Any]:
+        """Transcribe using OpenAI Whisper API."""
+        try:
+            provider = self._get_provider()
+            result = await provider.transcribe(audio_url=audio_url)
+            return result
+        except Exception as e:
+            logger.error(f"OpenAI Whisper transcription failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def text_to_speech(self, text: str, voice: str = "default") -> Dict[str, Any]:
+        """Whisper API doesn't support TTS, fall back to mock."""
+        mock = MockAudioProvider()
+        return await mock.text_to_speech(text, voice)
+
+    async def analyze_audio(self, audio_url: str) -> Dict[str, Any]:
+        """Use mock for audio analysis."""
+        mock = MockAudioProvider()
+        return await mock.analyze_audio(audio_url)
+
+
 class WhisperProvider(AudioProviderBase):
-    """Provider for OpenAI Whisper transcription."""
+    """Provider for local Whisper transcription (requires whisper package)."""
 
     async def transcribe(self, audio_url: str) -> Dict[str, Any]:
         """Transcribe using local Whisper model."""
@@ -89,7 +180,7 @@ class WhisperProvider(AudioProviderBase):
             import tempfile
             import httpx
 
-            logger.info(f"Transcribing with Whisper: {audio_url}")
+            logger.info(f"Transcribing with local Whisper: {audio_url}")
 
             # Download audio file
             async with httpx.AsyncClient(timeout=300.0) as client:
@@ -108,7 +199,6 @@ class WhisperProvider(AudioProviderBase):
             result = model.transcribe(temp_path)
 
             # Clean up temp file
-            import os
             os.unlink(temp_path)
 
             return {
@@ -120,11 +210,11 @@ class WhisperProvider(AudioProviderBase):
             }
 
         except ImportError:
-            logger.warning("Whisper not installed, falling back to mock")
+            logger.warning("Local Whisper not installed, falling back to mock")
             mock = MockAudioProvider()
             return await mock.transcribe(audio_url)
         except Exception as e:
-            logger.error(f"Whisper transcription failed: {e}")
+            logger.error(f"Local Whisper transcription failed: {e}")
             return {"success": False, "error": str(e)}
 
     async def text_to_speech(self, text: str, voice: str = "default") -> Dict[str, Any]:
@@ -148,14 +238,44 @@ class AudioAgent(BaseAgent):
             config=config or {}
         )
 
-        # Initialize providers
-        self.providers = {
+        # Determine provider modes from environment
+        tts_mode = os.environ.get("AUDIO_TTS_PROVIDER", "mock").lower()
+        transcribe_mode = os.environ.get("AUDIO_TRANSCRIBE_PROVIDER", "mock").lower()
+
+        # Initialize base providers
+        self.providers: Dict[str, AudioProviderBase] = {
             "mock": MockAudioProvider(),
-            "whisper": WhisperProvider()
+            "whisper": WhisperProvider(),  # Local Whisper
         }
 
-        # Default provider
+        # Add ElevenLabs TTS provider if configured
+        elevenlabs_key = os.environ.get("ELEVENLABS_API_KEY")
+        if elevenlabs_key and elevenlabs_key != "your-elevenlabs-api-key-here":
+            self.providers["elevenlabs"] = ElevenLabsTTSProvider(api_key=elevenlabs_key)
+            logger.info("ElevenLabs TTS provider initialized")
+
+        # Add OpenAI Whisper API provider if configured
+        openai_key = os.environ.get("OPENAI_API_KEY")
+        if openai_key and openai_key != "your-openai-api-key-here":
+            self.providers["openai_whisper"] = OpenAIWhisperAPIProvider(api_key=openai_key)
+            logger.info("OpenAI Whisper API provider initialized")
+
+        # Set default providers based on mode and availability
+        if tts_mode == "real" and "elevenlabs" in self.providers:
+            self.default_tts_provider = "elevenlabs"
+        else:
+            self.default_tts_provider = "mock"
+
+        if transcribe_mode == "real" and "openai_whisper" in self.providers:
+            self.default_transcribe_provider = "openai_whisper"
+        else:
+            self.default_transcribe_provider = "mock"
+
+        # Legacy default provider (for backwards compatibility)
         self.default_provider = config.get("default_provider", "mock") if config else "mock"
+
+        logger.info(f"AudioAgent - TTS: {self.default_tts_provider}, "
+                    f"Transcribe: {self.default_transcribe_provider}")
 
     async def process(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -172,10 +292,12 @@ class AudioAgent(BaseAgent):
         """
         try:
             task = inputs.get("task")
-            provider_name = inputs.get("provider", self.default_provider)
-            provider = self.providers.get(provider_name, self.providers["mock"])
 
             if task == "transcribe":
+                # Use transcription-specific default provider
+                provider_name = inputs.get("provider", self.default_transcribe_provider)
+                provider = self.providers.get(provider_name, self.providers["mock"])
+
                 audio_url = inputs.get("audio_url")
                 if not audio_url:
                     return {"success": False, "error": "audio_url required for transcription"}
@@ -186,6 +308,10 @@ class AudioAgent(BaseAgent):
                 return result
 
             elif task == "tts":
+                # Use TTS-specific default provider
+                provider_name = inputs.get("provider", self.default_tts_provider)
+                provider = self.providers.get(provider_name, self.providers["mock"])
+
                 text = inputs.get("text")
                 if not text:
                     return {"success": False, "error": "text required for TTS"}
@@ -197,6 +323,10 @@ class AudioAgent(BaseAgent):
                 return result
 
             elif task == "analyze":
+                # Analysis uses mock for now
+                provider_name = inputs.get("provider", "mock")
+                provider = self.providers.get(provider_name, self.providers["mock"])
+
                 audio_url = inputs.get("audio_url")
                 if not audio_url:
                     return {"success": False, "error": "audio_url required for analysis"}
@@ -215,6 +345,16 @@ class AudioAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Audio processing failed: {e}")
             return {"success": False, "error": str(e)}
+
+    def get_available_providers(self) -> Dict[str, list]:
+        """Return available providers by task type."""
+        return {
+            "tts": [p for p in self.providers.keys()
+                    if p in ("mock", "elevenlabs")],
+            "transcribe": [p for p in self.providers.keys()
+                           if p in ("mock", "whisper", "openai_whisper")],
+            "analyze": ["mock"],
+        }
 
     def get_confidence(self, result: Dict[str, Any]) -> float:
         """Extract confidence score from result."""

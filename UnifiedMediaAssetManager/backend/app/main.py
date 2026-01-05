@@ -31,6 +31,8 @@ from .services.video_storage import get_video_storage
 
 # Import Phase 1 API routers
 from .api import world_config, entity_traits, timeline
+# Import Phase 4 API routers
+from .api import providers
 
 @asynccontextmanager
 async def lifespan(app):
@@ -61,6 +63,8 @@ app = FastAPI(title="Unified Media Asset Manager API", lifespan=lifespan)
 app.include_router(world_config.router)
 app.include_router(entity_traits.router)
 app.include_router(timeline.router)
+# Register Phase 4 API routers (Provider Integration)
+app.include_router(providers.router)
 
 # Ensure DB and media dirs exist at import time for tests that instantiate
 # `TestClient(app)` at module import (some test files do this at top-level).
