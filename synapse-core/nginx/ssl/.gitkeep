@@ -1,0 +1,5 @@
+# SSL certificates should be placed here
+# - cert.pem: SSL certificate
+# - key.pem: Private key
+#
+# See DEPLOYMENT.md for instructions on generating certificates
