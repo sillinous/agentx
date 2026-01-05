@@ -1,0 +1,36 @@
+fastapi
+uvicorn[standard]
+
+# Persistence
+sqlmodel
+sqlalchemy
+
+# Migrations (optional)
+alembic
+requests
+Pillow
+SQLAlchemy==2.0.25
+python-dotenv==1.0.1
+PyJWT>=2.8.0
+pytest
+httpx
+boto3
+botocore
+
+# Task Queue & Background Processing
+celery[redis]>=5.3.0
+redis>=5.0.0
+flower>=2.0.0
+
+# AI & LLM Integration
+anthropic>=0.18.0
+
+# Video Processing
+ffmpeg-python>=0.2.0
+
+# Audio Processing
+openai-whisper>=20231117
+pydub>=0.25.1
+
+# Additional HTTP Clients
+aiohttp>=3.9.0
