@@ -130,14 +130,16 @@ Replace mock providers with real API integrations.
 - [x] Create audio page route (`/universes/[id]/audio`)
 - [x] Add navigation to universe page
 
-### Task 4.4: Provider Integration - PENDING
-- [ ] Add Runway ML client
-- [ ] Implement video generation with Runway
-- [ ] Add ElevenLabs client
-- [ ] Implement TTS with ElevenLabs
+### Task 4.4: Provider Integration - IN PROGRESS
+- [x] Add Runway ML client (`backend/app/providers/runway.py`)
+- [x] Implement video generation with Runway Gen-3 Alpha
+- [x] Add ElevenLabs client (`backend/app/providers/elevenlabs.py`)
+- [x] Implement TTS with ElevenLabs
+- [x] Update environment variables (`.env.example`)
+- [x] Add base provider class with error handling
 - [ ] Configure Whisper for transcription
-- [ ] Update environment variables
-- [ ] Add API key validation
+- [ ] Add provider health check endpoints
+- [ ] Wire providers into existing agents
 
 ---
 
