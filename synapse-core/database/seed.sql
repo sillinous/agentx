@@ -1,0 +1,2 @@
+-- This file is intentionally left empty.
+-- Seeding data will be added in a future step.

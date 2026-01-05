@@ -1,0 +1,12 @@
+{
+  "name": "synapse-core",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "web": "npm run dev -w apps/web",
+    "test": "npm test -w apps/web"
+  }
+}
