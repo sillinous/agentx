@@ -19,26 +19,22 @@ async function getDevToken(): Promise<string> {
     return cachedToken;
   }
 
-  try {
-    const response = await fetch(`${FASTAPI_BASE_URL}/auth/dev-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
+  const response = await fetch(`${FASTAPI_BASE_URL}/auth/dev-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
 
-    if (!response.ok) {
-      throw new Error(`Failed to get dev token: ${response.status}`);
-    }
-
-    const data = await response.json();
-    cachedToken = data.access_token;
-    // Tokens expire in 24h, cache for 23h
-    tokenExpiry = now + 23 * 60 * 60 * 1000;
-
-    return cachedToken;
-  } catch (error) {
-    console.error('Error fetching dev token:', error);
-    throw new Error('Authentication service unavailable');
+  if (!response.ok) {
+    throw new Error(`Failed to get dev token: ${response.status}`);
   }
+
+  const data = await response.json();
+  const token: string = data.access_token;
+  cachedToken = token;
+  // Tokens expire in 24h, cache for 23h
+  tokenExpiry = now + 23 * 60 * 60 * 1000;
+
+  return token;
 }
 
 export async function POST(req: NextRequest) {
