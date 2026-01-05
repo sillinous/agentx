@@ -4,15 +4,15 @@ Integration Tests for Synapse API Endpoints
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
 
 # Add parent directory to path to import main
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from main import app
-from auth import create_access_token
+from main import app  # noqa: E402
+from auth import create_access_token  # noqa: E402
 
 
 @pytest.fixture
