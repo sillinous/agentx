@@ -33,7 +33,9 @@ class Token(BaseModel):
 
 
 # --- Token Generation ---
-def create_access_token(user_id: str, email: str, subscription_tier: str = "standard") -> str:
+def create_access_token(
+    user_id: str, email: str, subscription_tier: str = "standard"
+) -> str:
     """
     Creates a JWT access token for a user.
 

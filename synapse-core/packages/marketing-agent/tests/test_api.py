@@ -90,19 +90,17 @@ class TestAuthEndpoints:
 
 
 class TestScribeAgent:
-    @patch('main.scribe_agent_app')
+    @patch("main.scribe_agent_app")
     def test_invoke_scribe_agent(self, mock_scribe, client, auth_headers):
         """Test invoking the Scribe agent"""
         # Mock the agent response
         mock_response = MagicMock()
         mock_response.content = '{"type": "headline", "content": "Test Headline"}'
-        mock_scribe.invoke.return_value = {
-            "messages": [mock_response]
-        }
+        mock_scribe.invoke.return_value = {"messages": [mock_response]}
 
         payload = {
             "thread_id": "test-thread-1",
-            "prompt": "Write a headline for a yoga app"
+            "prompt": "Write a headline for a yoga app",
         }
 
         response = client.post("/invoke/scribe", json=payload, headers=auth_headers)
@@ -115,23 +113,17 @@ class TestScribeAgent:
 
     def test_invoke_scribe_without_auth(self, client):
         """Test invoking Scribe without authentication (should fail)"""
-        payload = {
-            "thread_id": "test-thread-1",
-            "prompt": "Write a headline"
-        }
+        payload = {"thread_id": "test-thread-1", "prompt": "Write a headline"}
 
         response = client.post("/invoke/scribe", json=payload)
 
         assert response.status_code == 422  # Missing required header
 
-    @patch('main.scribe_agent_app')
+    @patch("main.scribe_agent_app")
     def test_invoke_scribe_with_invalid_token(self, mock_scribe, client):
         """Test invoking Scribe with invalid token"""
         headers = {"Authorization": "Bearer invalid.token"}
-        payload = {
-            "thread_id": "test-thread-1",
-            "prompt": "Write a headline"
-        }
+        payload = {"thread_id": "test-thread-1", "prompt": "Write a headline"}
 
         response = client.post("/invoke/scribe", json=payload, headers=headers)
 
@@ -139,19 +131,17 @@ class TestScribeAgent:
 
 
 class TestArchitectAgent:
-    @patch('main.architect_agent_app')
+    @patch("main.architect_agent_app")
     def test_invoke_architect_agent(self, mock_architect, client, auth_headers):
         """Test invoking the Architect agent"""
         # Mock the agent response
         mock_response = MagicMock()
         mock_response.content = '{"type": "component", "code": "export default function Button() { return <button>Click</button> }"}'
-        mock_architect.invoke.return_value = {
-            "messages": [mock_response]
-        }
+        mock_architect.invoke.return_value = {"messages": [mock_response]}
 
         payload = {
             "thread_id": "test-thread-2",
-            "prompt": "Create a simple button component"
+            "prompt": "Create a simple button component",
         }
 
         response = client.post("/invoke/architect", json=payload, headers=auth_headers)
@@ -164,10 +154,7 @@ class TestArchitectAgent:
 
     def test_invoke_architect_without_auth(self, client):
         """Test invoking Architect without authentication (should fail)"""
-        payload = {
-            "thread_id": "test-thread-2",
-            "prompt": "Create a button"
-        }
+        payload = {"thread_id": "test-thread-2", "prompt": "Create a button"}
 
         response = client.post("/invoke/architect", json=payload)
 
@@ -175,19 +162,17 @@ class TestArchitectAgent:
 
 
 class TestSentryAgent:
-    @patch('main.sentry_agent_app')
+    @patch("main.sentry_agent_app")
     def test_invoke_sentry_agent(self, mock_sentry, client, auth_headers):
         """Test invoking the Sentry agent"""
         # Mock the agent response
         mock_response = MagicMock()
         mock_response.content = '{"type": "analytics_report", "insights": "Traffic up 20%", "recommendations": "Increase ad spend"}'
-        mock_sentry.invoke.return_value = {
-            "messages": [mock_response]
-        }
+        mock_sentry.invoke.return_value = {"messages": [mock_response]}
 
         payload = {
             "thread_id": "test-thread-3",
-            "prompt": "Analyze my website performance for the last 7 days"
+            "prompt": "Analyze my website performance for the last 7 days",
         }
 
         response = client.post("/invoke/sentry", json=payload, headers=auth_headers)
@@ -199,10 +184,7 @@ class TestSentryAgent:
 
     def test_invoke_sentry_without_auth(self, client):
         """Test invoking Sentry without authentication (should fail)"""
-        payload = {
-            "thread_id": "test-thread-3",
-            "prompt": "Analyze performance"
-        }
+        payload = {"thread_id": "test-thread-3", "prompt": "Analyze performance"}
 
         response = client.post("/invoke/sentry", json=payload)
 
@@ -210,20 +192,15 @@ class TestSentryAgent:
 
 
 class TestErrorHandling:
-    @patch('main.scribe_agent_app')
+    @patch("main.scribe_agent_app")
     def test_agent_returns_non_json_content(self, mock_scribe, client, auth_headers):
         """Test handling of non-JSON responses from agents"""
         # Mock agent returning plain text
         mock_response = MagicMock()
         mock_response.content = "This is just plain text, not JSON"
-        mock_scribe.invoke.return_value = {
-            "messages": [mock_response]
-        }
+        mock_scribe.invoke.return_value = {"messages": [mock_response]}
 
-        payload = {
-            "thread_id": "test-thread-error",
-            "prompt": "Write something"
-        }
+        payload = {"thread_id": "test-thread-error", "prompt": "Write something"}
 
         response = client.post("/invoke/scribe", json=payload, headers=auth_headers)
 
