@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="9" time="3.839" timestamp="2026-01-03T09:45:24.771628" hostname="OFFICE_BEAST"><testcase classname="tests.test_api" name="test_user_and_universe_lifecycle" time="0.332"><failure message="assert 400 == 201&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">def test_user_and_universe_lifecycle():
+        token = get_dev_token()
+        headers = {"Authorization": f"Bearer {token}"}
+    
+        # create user
+        r = client.post("/users", params={"username": "dev", "display_name": "Dev User"})
+&gt;       assert r.status_code == 201
+E       assert 400 == 201
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests\test_api.py:20: AssertionError</failure></testcase><testcase classname="tests.test_api" name="test_media_upload_and_serving" time="0.474" /><testcase classname="tests.test_api" name="test_permission_enforcement_for_elements_and_components" time="0.068" /><testcase classname="tests.test_auth" name="test_has_role_true_false" time="0.001" /><testcase classname="tests.test_auth" name="test_require_role_allows_when_has" time="0.001" /><testcase classname="tests.test_auth" name="test_require_role_denies_when_missing" time="0.001" /><testcase classname="tests.test_auth" name="test_require_role_bypasses_when_disable_auth" time="0.001" /><testcase classname="tests.test_permissions" name="test_owner_and_admin_permissions" time="0.039" /><testcase classname="tests.test_permissions" name="test_upload_endpoint_allows_authenticated_users" time="0.094" /></testsuite></testsuites>

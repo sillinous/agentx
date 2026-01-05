@@ -1,0 +1,92 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    image: python:3.11-slim
+    working_dir: /app
+    command: >
+      bash -c "apt-get update && apt-get install -y --no-install-recommends build-essential ffmpeg &&
+               pip install --no-cache-dir -r requirements.txt &&
+               alembic upgrade head &&
+               uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+    environment:
+      - DATABASE_URL=sqlite:///./sql_app.db
+      - DISABLE_AUTH=true
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - PYTHONUNBUFFERED=1
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  celery_worker:
+    image: python:3.11-slim
+    working_dir: /app
+    command: >
+      bash -c "apt-get update && apt-get install -y --no-install-recommends build-essential ffmpeg &&
+               pip install --no-cache-dir -r requirements.txt &&
+               celery -A app.celery_app worker --loglevel=info"
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+    environment:
+      - DATABASE_URL=sqlite:///./sql_app.db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  flower:
+    image: python:3.11-slim
+    working_dir: /app
+    command: >
+      bash -c "pip install --no-cache-dir celery[redis] flower &&
+               celery -A app.celery_app flower --port=5555"
+    ports:
+      - "5555:5555"
+    volumes:
+      - ./backend:/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  backend_media:
+  redis_data:

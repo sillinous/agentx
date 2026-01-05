@@ -1,0 +1,68 @@
+name: Backend Tests
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Prepare test output directories
+        run: |
+          mkdir -p backend-test-results
+          mkdir -p backend/media || true
+
+      - name: Run pytest
+        working-directory: backend
+        run: |
+          pytest --junitxml=../backend-test-results/junit.xml -q
+        continue-on-error: false
+
+      - name: List artifacts (for debugging)
+        if: failure()
+        run: |
+          echo "--- List repository files ---"
+          ls -la
+          echo "--- backend/media contents ---"
+          ls -la backend/media || true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend-test-results/
+
+      - name: Upload backend media (test-generated files)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-media
+          path: backend/media/
