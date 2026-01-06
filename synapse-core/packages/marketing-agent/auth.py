@@ -5,7 +5,7 @@ Handles token generation, validation, and user authentication.
 
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Optional
 import jwt
 from jwt.exceptions import PyJWTError
@@ -47,14 +47,14 @@ def create_access_token(
     Returns:
         Encoded JWT token as a string
     """
-    expiration = datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS)
+    expiration = datetime.now(UTC) + timedelta(hours=JWT_EXPIRATION_HOURS)
 
     payload = {
         "user_id": user_id,
         "email": email,
         "subscription_tier": subscription_tier,
         "exp": expiration,
-        "iat": datetime.utcnow(),
+        "iat": datetime.now(UTC),
         "type": "access_token",
     }
 

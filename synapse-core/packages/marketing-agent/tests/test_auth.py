@@ -5,7 +5,7 @@ Tests for JWT Authentication Module
 import pytest
 import os
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from fastapi import HTTPException
 from auth import (
     create_access_token,
@@ -67,14 +67,14 @@ class TestTokenDecoding:
         """Test that expired tokens raise an exception"""
         # Create a token that expired 1 hour ago
         secret = os.getenv("JWT_SECRET", "development-secret-key-change-in-production")
-        expiration = datetime.utcnow() - timedelta(hours=1)
+        expiration = datetime.now(UTC) - timedelta(hours=1)
 
         payload = {
             "user_id": "test-user",
             "email": "test@test.com",
             "subscription_tier": "standard",
             "exp": expiration,
-            "iat": datetime.utcnow() - timedelta(hours=2),
+            "iat": datetime.now(UTC) - timedelta(hours=2),
             "type": "access_token",
         }
 
@@ -102,8 +102,8 @@ class TestTokenDecoding:
             "user_id": "test-user",
             "email": "test@test.com",
             "subscription_tier": "standard",
-            "exp": datetime.utcnow() + timedelta(hours=1),
-            "iat": datetime.utcnow(),
+            "exp": datetime.now(UTC) + timedelta(hours=1),
+            "iat": datetime.now(UTC),
             "type": "access_token",
         }
 
@@ -120,8 +120,8 @@ class TestTokenDecoding:
         payload = {
             "email": "test@test.com",
             "subscription_tier": "standard",
-            "exp": datetime.utcnow() + timedelta(hours=1),
-            "iat": datetime.utcnow(),
+            "exp": datetime.now(UTC) + timedelta(hours=1),
+            "iat": datetime.now(UTC),
             "type": "access_token",
         }
 
