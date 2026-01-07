@@ -28,3 +28,6 @@ export type { AgentKey, Message } from './Chat';
 
 // Canvas components
 export { LiveCanvas } from './LiveCanvas';
+
+// Conversation components
+export { ConversationSidebar } from './ConversationSidebar';

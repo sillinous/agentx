@@ -92,18 +92,22 @@ synapse-core/
 │   │   ├── scribe.py            # Marketing content generation agent
 │   │   ├── auth.py              # JWT authentication system
 │   │   ├── database_utils.py    # PostgreSQL utilities
-│   │   ├── tests/               # Comprehensive test suite
-│   │   │   ├── test_auth.py
-│   │   │   ├── test_api.py
-│   │   │   └── test_database_utils.py
+│   │   ├── tests/               # Comprehensive test suite (61 tests)
+│   │   │   ├── test_auth.py     # Authentication tests
+│   │   │   ├── test_api.py      # API endpoint tests
+│   │   │   └── test_database.py # Database utility tests
 │   │   └── Dockerfile
 │   │
 │   ├── builder-agent/            # The Architect (React component builder)
 │   │   ├── architect.py         # UI/UX component generation agent
+│   │   ├── tests/               # Test suite (31 tests)
+│   │   │   └── test_architect.py
 │   │   └── pyproject.toml
 │   │
 │   └── analytics-agent/          # The Sentry (Analytics & insights)
 │       ├── sentry.py            # Performance monitoring agent
+│       ├── tests/               # Test suite (27 tests)
+│       │   └── test_sentry.py
 │       └── pyproject.toml
 │
 ├── database/
@@ -275,8 +279,14 @@ Content-Type: application/json
 ### Run All Tests
 
 ```bash
-# Backend tests
-docker-compose exec backend pytest -v
+# Marketing agent tests (61 tests)
+cd packages/marketing-agent && poetry run pytest -v
+
+# Builder agent tests (31 tests)
+cd packages/builder-agent && poetry run pytest -v
+
+# Analytics agent tests (27 tests)
+cd packages/analytics-agent && poetry run pytest -v
 
 # Frontend unit tests
 npm test -w apps/web
@@ -285,12 +295,25 @@ npm test -w apps/web
 npm run test:e2e -w apps/web
 ```
 
-### Test Coverage
+### Test Coverage (119 total tests)
 
-- **Authentication**: JWT token generation, validation, expiration handling
-- **API Endpoints**: All agent invocations with auth, error handling
-- **Agents**: Tool execution, state management, response formatting
-- **Integration**: End-to-end flows with mocked agents
+- **Marketing Agent (61 tests)**:
+  - Authentication: JWT token generation, validation, expiration handling
+  - API Endpoints: All agent invocations with auth, error handling
+  - Database utilities: Connection management, CRUD operations, mock fallbacks
+
+- **Builder Agent (31 tests)**:
+  - Component structure analysis
+  - React/JSX syntax validation
+  - UI component library operations
+  - Component test generation
+
+- **Analytics Agent (27 tests)**:
+  - Performance metrics retrieval
+  - Anomaly detection algorithms
+  - Traffic trend analysis
+  - Insights report generation
+  - Alert threshold management
 
 ---
 
