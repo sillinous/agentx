@@ -1,226 +1,324 @@
 """
-SYNAPSE Agent 02: The Scribe (sys_scribe_v1)
-Version: 1.0
-Role: Content Generation & Brand Voice Guardian
-Archetype: The Storyteller / The Diplomat
+The Scribe - Marketing Content Generation Agent
+Handles brand voice consistency, content creation, and SEO optimization.
 """
 
-from typing import List, TypedDict, Annotated
-from langchain_core.messages import AnyMessage, ToolMessage
-from langchain_core.prompts import ChatPromptTemplate
+import os
+import json
+import logging
+from typing import Annotated, TypedDict, Literal
+
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
-from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.sqlite import SqliteSaver
-
-# Assume a LangChain compatible model is available
 from langchain_openai import ChatOpenAI
-from database_utils import retrieve_brand_dna
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode
+from langgraph.checkpoint.memory import MemorySaver
+
+# Import database utilities
+try:
+    from database_utils import (
+        get_brand_dna,
+        search_context,
+        generate_embedding,
+    )
+
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 
-# --- Agent State ---
-# This TypedDict defines the "memory" or "state" of our agent at each step.
+# --- State Definition ---
 class ScribeState(TypedDict):
-    messages: Annotated[List[AnyMessage], lambda x, y: x + y]
+    """State for The Scribe agent."""
+
+    messages: Annotated[list, add_messages]
+    brand_voice: str
+    content_type: str
+    user_id: str
+    thread_id: str
 
 
-# --- Placeholder Tools ---
-# In a real scenario, these would be robust functions that might call external APIs
-# or interact with the database (Context Lake).
+# --- Tools for The Scribe ---
+@tool
+def get_brand_voice(user_id: str) -> str:
+    """
+    Retrieve the brand voice guidelines for a user.
+
+    Args:
+        user_id: The user's unique identifier
+
+    Returns:
+        Brand voice guidelines as a string
+    """
+    # Try to fetch from database if available
+    if DB_AVAILABLE:
+        try:
+            brand_dna = get_brand_dna(user_id)
+            if brand_dna:
+                return json.dumps(
+                    {
+                        "tone": brand_dna.get(
+                            "voice_tone", "professional yet approachable"
+                        ),
+                        "style": brand_dna.get("visual_style", "clear and concise"),
+                        "keywords": brand_dna.get("keywords", []),
+                        "avoid": brand_dna.get("avoid_phrases", []),
+                        "values": brand_dna.get("brand_values", []),
+                    }
+                )
+        except Exception as e:
+            logger.warning(f"Failed to fetch brand DNA from database: {e}")
+
+    # Default fallback
+    default_voice = {
+        "tone": "professional yet approachable",
+        "style": "clear and concise",
+        "keywords": ["innovative", "reliable", "expert"],
+        "avoid": ["jargon", "passive voice", "clichés"],
+    }
+    return json.dumps(default_voice)
 
 
 @tool
-def retrieve_brand_voice(query: str, user_id: str) -> str:
+def get_relevant_context(user_id: str, query: str, limit: int = 3) -> str:
     """
-    Retrieves key parameters about the brand voice for a given user from the Context Lake (database).
+    Search for relevant context from the user's history using semantic search.
+
+    Args:
+        user_id: The user's unique identifier
+        query: The search query
+        limit: Maximum number of results to return
+
+    Returns:
+        Relevant context as a JSON string
     """
-    print("---TOOL: Retrieving Brand Voice---")
-    brand_dna = retrieve_brand_dna(user_id)
-    if brand_dna:
-        # Format the retrieved JSON into a readable string for the LLM
-        return f"Brand DNA parameters: {brand_dna}"
-    else:
-        return "No specific brand DNA found. Use a general professional and witty tone."
+    if DB_AVAILABLE:
+        try:
+            # Generate embedding for the query
+            embedding = generate_embedding(query)
+            if embedding:
+                results = search_context(user_id, embedding, limit=limit)
+                if results:
+                    return json.dumps(
+                        {
+                            "found": len(results),
+                            "context": [
+                                {
+                                    "type": r.get("context_type"),
+                                    "content": r.get("content"),
+                                    "similarity": r.get("similarity", 0),
+                                }
+                                for r in results
+                            ],
+                        }
+                    )
+        except Exception as e:
+            logger.warning(f"Failed to search context: {e}")
+
+    return json.dumps(
+        {"found": 0, "context": [], "message": "No relevant context found"}
+    )
 
 
 @tool
-def sentiment_analyzer(text: str) -> str:
+def analyze_sentiment(text: str) -> dict:
     """
-    Analyzes the sentiment of the generated text.
-    Returns 'Positive', 'Neutral', or 'Negative'.
+    Analyze the sentiment and tone of marketing content.
+
+    Args:
+        text: The text to analyze
+
+    Returns:
+        Sentiment analysis results
     """
-    print(f"---TOOL: Analyzing Sentiment for: '{text[:50]}...'---")
-    text_lower = text.lower()
-
-    positive_keywords = [
-        "great",
-        "excellent",
-        "awesome",
-        "good",
-        "happy",
-        "love",
-        "fantastic",
-        "superb",
-    ]
-    negative_keywords = [
-        "bad",
-        "terrible",
-        "poor",
-        "awful",
-        "hate",
-        "sad",
-        "problem",
-        "aggressive",
-    ]
-
-    positive_score = sum(text_lower.count(kw) for kw in positive_keywords)
-    negative_score = sum(text_lower.count(kw) for kw in negative_keywords)
-
-    if positive_score > negative_score:
-        return "Positive"
-    elif negative_score > positive_score:
-        return "Negative"
-    else:
-        return "Neutral"
+    # Placeholder - will integrate with sentiment analysis
+    return {
+        "sentiment": "positive",
+        "confidence": 0.85,
+        "tone": "professional",
+        "suggestions": [],
+    }
 
 
 @tool
-def seo_optimizer(text: str, keywords: List[str]) -> str:
+def optimize_for_seo(content: str, keywords: list[str]) -> dict:
     """
-    Optimizes the text for SEO based on provided keywords.
-    Returns an optimization report.
+    Optimize content for search engines.
+
+    Args:
+        content: The content to optimize
+        keywords: Target keywords
+
+    Returns:
+        SEO optimization results and suggestions
     """
-    print(f"---TOOL: Optimizing for keywords: {keywords}---")
-    report = []
-    text_lower = text.lower()
+    word_count = len(content.split())
+    keyword_density = {}
+    content_lower = content.lower()
 
-    for keyword in keywords:
-        if keyword.lower() not in text_lower:
-            report.append(f"Keyword '{keyword}' is missing from the text.")
-        else:
-            report.append(f"Keyword '{keyword}' is present.")
-
-    if not report:
-        return "No keywords provided for SEO optimization."
-
-    return "SEO Optimization Report:\n" + "\n".join(report)
-
-
-# --- Agent Nodes ---
-# Each node in our graph is a function that takes the current state and returns a
-# dictionary to update that state.
-
-
-class ScribeAgent:
-    def __init__(self, model):
-        self.model = model
-
-    def draft_content(self, state: ScribeState, config: dict):  # Add config argument
-        """
-        The first step. The Scribe drafts content based on the user's request.
-        """
-        print("---NODE: Drafting Content---")
-
-        user_id = config["configurable"]["user_id"]  # Extract user_id from config
-
-        # Create a prompt that includes the tools
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    "You are 'The Scribe', a world-class content generation agent. Your mission is to draft compelling text based on a user's request. First, you MUST retrieve the brand voice to understand the style guidelines. Then, write the content. After drafting, analyze the sentiment of the content and, if keywords are provided in the request, optimize the content for SEO using the available tools.",
-                ),
-                ("human", "{request}"),
-            ]
+    for kw in keywords:
+        count = content_lower.count(kw.lower())
+        keyword_density[kw] = (
+            round((count / word_count) * 100, 2) if word_count > 0 else 0
         )
 
-        # Bind all relevant tools with the user_id
-        chain = prompt | self.model.bind_tools(
-            [
-                retrieve_brand_voice.partial(user_id=user_id),
-                sentiment_analyzer,
-                seo_optimizer,
-            ]
-        )
+    return {
+        "word_count": word_count,
+        "keyword_density": keyword_density,
+        "readability_score": 75,  # Placeholder
+        "suggestions": [
+            "Consider adding more internal links",
+            "Include a call-to-action",
+        ],
+    }
 
-        # The user's request is the last message in the state
-        user_request = state["messages"][-1].content
 
-        response = chain.invoke({"request": user_request})
+@tool
+def generate_content_variations(content: str, count: int = 3) -> list[str]:
+    """
+    Generate variations of marketing content.
 
+    Args:
+        content: The original content
+        count: Number of variations to generate
+
+    Returns:
+        List of content variations
+    """
+    # Placeholder - will use LLM for actual variations
+    return [
+        f"Variation 1: {content}",
+        f"Variation 2 (shorter): {content[:len(content)//2]}...",
+        f"Variation 3 (question): Did you know? {content}",
+    ][:count]
+
+
+# --- Agent Node Functions ---
+def create_scribe_agent():
+    """Create and return The Scribe agent graph."""
+
+    # Initialize the LLM
+    model = ChatOpenAI(
+        model=os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview"),
+        temperature=0.7,
+    )
+
+    tools = [
+        get_brand_voice,
+        get_relevant_context,
+        analyze_sentiment,
+        optimize_for_seo,
+        generate_content_variations,
+    ]
+    model_with_tools = model.bind_tools(tools)
+
+    system_prompt = """You are The Scribe, an expert marketing content agent for Synapse Core.
+
+Your responsibilities:
+1. Generate high-quality marketing content that matches the brand voice
+2. Ensure content is optimized for the target audience
+3. Maintain consistency across all marketing materials
+4. Provide SEO-optimized content when requested
+
+You have access to tools for:
+- Retrieving brand voice guidelines (get_brand_voice)
+- Searching relevant context from user history (get_relevant_context)
+- Analyzing sentiment and tone (analyze_sentiment)
+- Optimizing content for SEO (optimize_for_seo)
+- Generating content variations (generate_content_variations)
+
+Always start by checking the brand voice guidelines before creating content.
+Consider searching for relevant context to maintain consistency with past content.
+Provide clear, engaging, and professional marketing copy.
+
+Format your responses as JSON when possible:
+{
+    "type": "content" | "analysis" | "suggestions",
+    "content": "...",
+    "metadata": {...}
+}
+"""
+
+    def agent_node(state: ScribeState) -> dict:
+        """Main agent decision node."""
+        messages = state["messages"]
+
+        # Add system prompt if not present
+        if not messages or not isinstance(messages[0], SystemMessage):
+            messages = [SystemMessage(content=system_prompt)] + list(messages)
+
+        response = model_with_tools.invoke(messages)
         return {"messages": [response]}
 
-    def verify_and_refine(self, state: ScribeState):
-        """
-        The second step. The Scribe verifies the draft against its tools and refines it.
-        """
-        print("---NODE: Verifying and Refining---")
+    def should_continue(state: ScribeState) -> Literal["tools", END]:
+        """Determine if we should continue to tools or end."""
+        messages = state["messages"]
+        last_message = messages[-1]
 
-        # The model's last message should contain the tool calls
-        assistant_message = state["messages"][-1]
+        if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+            return "tools"
+        return END
 
-        # Execute the tool calls
-        tool_outputs = []
-        for tool_call in assistant_message.tool_calls:
-            tool_output = globals()[tool_call["name"]].invoke(tool_call["args"])
-            tool_outputs.append(
-                ToolMessage(content=str(tool_output), tool_call_id=tool_call["id"])
-            )
+    # Build the graph
+    graph = StateGraph(ScribeState)
 
-        # The new state includes the tool outputs
-        new_messages = state["messages"] + tool_outputs
+    graph.add_node("agent", agent_node)
+    graph.add_node("tools", ToolNode(tools))
 
-        # Now, call the model again with the tool results to get the final, refined text
-        response = self.model.invoke(new_messages)
+    graph.add_edge(START, "agent")
+    graph.add_conditional_edges("agent", should_continue)
+    graph.add_edge("tools", "agent")
 
-        return {"messages": [response]}
+    # Compile with memory
+    memory = MemorySaver()
+    return graph.compile(checkpointer=memory)
 
 
-# --- Graph Definition ---
-def get_scribe_agent():
+# Create the agent app
+scribe_agent_app = create_scribe_agent()
+
+
+# --- Convenience Functions ---
+def invoke_scribe(
+    prompt: str,
+    user_id: str,
+    thread_id: str,
+    brand_voice: str = "",
+    content_type: str = "general",
+) -> dict:
     """
-    Initializes and compiles The Scribe agent graph.
+    Convenience function to invoke The Scribe agent.
+
+    Args:
+        prompt: The user's request
+        user_id: User identifier
+        thread_id: Thread/conversation identifier
+        brand_voice: Optional brand voice override
+        content_type: Type of content to generate
+
+    Returns:
+        Agent response as a dictionary
     """
-    # Initialize the model
-    # IMPORTANT: This requires the OPENAI_API_KEY environment variable to be set.
-    llm = ChatOpenAI(model="gpt-4-turbo")
+    config = {"configurable": {"thread_id": thread_id, "user_id": user_id}}
 
-    scribe_agent = ScribeAgent(model=llm)
+    result = scribe_agent_app.invoke(
+        {
+            "messages": [HumanMessage(content=prompt)],
+            "brand_voice": brand_voice,
+            "content_type": content_type,
+            "user_id": user_id,
+            "thread_id": thread_id,
+        },
+        config=config,
+    )
 
-    # Define the graph
-    workflow = StateGraph(ScribeState)
-
-    # Add the nodes
-    workflow.add_node("draft", scribe_agent.draft_content)
-    workflow.add_node("refine", scribe_agent.verify_and_refine)
-
-    # Define the edges
-    workflow.set_entry_point("draft")
-    workflow.add_edge("draft", "refine")
-    workflow.add_edge("refine", END)
-
-    # Compile the graph with a memory saver
-    memory = SqliteSaver.from_conn_string(":memory:")
-    app = workflow.compile(checkpointer=memory)
-
-    return app
-
-
-# --- Example Usage ---
-if __name__ == "__main__":
-    print("This is a blueprint for The Scribe agent.")
-    print("To run it as a service, use the 'main.py' file and a uvicorn server.")
-
-    # Example of how to invoke the agent directly
-    # os.environ["OPENAI_API_KEY"] = "YOUR_OPENAI_API_KEY"
-    # agent_app = get_scribe_agent()
-    #
-    # config = {"configurable": {"thread_id": "scribe-thread-1"}}
-    # user_input = "Write a short, punchy headline for a new course about 'Yoga for Programmers'."
-    #
-    # final_state = agent_app.invoke(
-    #     {"messages": [HumanMessage(content=user_input)]},
-    #     config=config
-    # )
-    #
-    # print("\n--- FINAL OUTPUT ---")
-    # print(final_state['messages'][-1].content)
+    last_message = result["messages"][-1]
+    return {
+        "response": last_message.content,
+        "thread_id": thread_id,
+        "agent": "scribe",
+    }

@@ -26,9 +26,9 @@ def valid_token():
         "user_id": "test-user-123",
         "email": "test@example.com",
         "subscription_tier": "standard",
-        "type": "access_token",
         "exp": datetime.now(UTC) + timedelta(hours=1),
         "iat": datetime.now(UTC),
+        "type": "access_token",
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -40,9 +40,9 @@ def expired_token():
         "user_id": "test-user-123",
         "email": "test@example.com",
         "subscription_tier": "standard",
-        "type": "access_token",
         "exp": datetime.now(UTC) - timedelta(hours=1),
         "iat": datetime.now(UTC) - timedelta(hours=2),
+        "type": "access_token",
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -84,7 +84,7 @@ class TestRootEndpoint:
 class TestHealthEndpoint:
     """Tests for the health check endpoint."""
 
-    @patch("database_utils.check_database_health")
+    @patch("main.check_database_health")
     def test_health_returns_healthy_when_db_connected(self, mock_db_health, client):
         """Test health endpoint returns healthy when database is connected."""
         mock_db_health.return_value = {"connected": True, "latency_ms": 5}
@@ -97,7 +97,7 @@ class TestHealthEndpoint:
         assert data["version"] == "1.0.0"
         assert data["database"]["connected"] is True
 
-    @patch("database_utils.check_database_health")
+    @patch("main.check_database_health")
     def test_health_returns_degraded_when_db_disconnected(self, mock_db_health, client):
         """Test health endpoint returns degraded when database is disconnected."""
         mock_db_health.return_value = {
@@ -112,7 +112,7 @@ class TestHealthEndpoint:
         assert data["status"] == "degraded"
         assert data["database"]["connected"] is False
 
-    @patch("database_utils.check_database_health")
+    @patch("main.check_database_health")
     def test_health_shows_agent_status(self, mock_db_health, client):
         """Test health endpoint shows status of all agents."""
         mock_db_health.return_value = {"connected": True}

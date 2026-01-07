@@ -1,134 +1,312 @@
-import sqlite3
+"""
+Database Initialization Script for Synapse Core
+Creates tables, indexes, and initial data for the application.
+"""
+
 import os
-import json
-import uuid
-from datetime import datetime
+import logging
+import sys
 
-DATABASE_FILE = "synapse.db"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
-# Adapted schema for SQLite
-SQLITE_SCHEMA = """
--- 1. THE USERS (The Humans)
-create table users (
-  id TEXT primary key,
-  email text unique not null,
-  full_name text,
-  subscription_tier text default 'standard', -- 'standard' or 'enterprise'
-  created_at TEXT default (strftime('%Y-%m-%d %H:%M:%S', 'now'))
+# Database configuration
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://synapse:synapse@localhost:5432/synapse_core",
+)
+
+# SQL Schema
+SCHEMA_SQL = """
+-- Enable pgvector extension for vector embeddings
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255),
+    subscription_tier VARCHAR(50) DEFAULT 'standard',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. THE BRAND DNA (The "Soul" of the business)
--- This stores the JSON blob we generated in the "Genesis" interview.
-create table brand_dna (
-  id TEXT primary key,
-  user_id TEXT references users(id) on delete cascade,
-  parameters TEXT not null, -- { "voice": "witty", "colors": ["#00f0ff"] }
-  updated_at TEXT default (strftime('%Y-%m-%d %H:%M:%S', 'now'))
+-- Brand DNA table for storing brand voice and identity
+CREATE TABLE IF NOT EXISTS brand_dna (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    voice_tone TEXT,
+    visual_style TEXT,
+    keywords TEXT[],
+    avoid_phrases TEXT[],
+    brand_values TEXT[],
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id)
 );
 
--- 3. THE AGENT REGISTRY (The Employees)
--- Defines which agents are active for which user.
-create table agents (
-  id TEXT primary key,
-  system_key text not null, -- e.g., 'sys_scribe_v1'
-  name text not null, -- e.g., 'The Scribe'
-  capabilities TEXT, -- ["write_email", "check_grammar"]
-  user_id TEXT references users(id) on delete cascade,
-  is_active boolean default true
+-- Agents table for agent configurations
+CREATE TABLE IF NOT EXISTS agents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    description TEXT,
+    config JSONB DEFAULT '{}',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. THE CONTEXT LAKE (Long Term Memory)
--- Every email sent, every page built, is stored here as a vector.
-create table context_lake (
-  id TEXT primary key,
-  user_id TEXT references users(id) on delete cascade,
-  agent_id TEXT references agents(id),
-  content text not null, -- "Drafted email regarding Black Friday"
-  metadata TEXT, -- { "type": "email", "performance_score": 0.9 }
-  embedding TEXT, -- The AI "Brain" representation
-  created_at TEXT default (strftime('%Y-%m-%d %H:%M:%S', 'now'))
+-- Context Lake for semantic memory with vector embeddings
+CREATE TABLE IF NOT EXISTS context_lake (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    context_type VARCHAR(50) NOT NULL,
+    content JSONB NOT NULL,
+    embedding vector(1536),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 5. THE TASK QUEUE (The Agent To-Do List)
--- This powers the "Activity Feed" in the UI.
-create table task_queue (
-  id TEXT primary key,
-  user_id TEXT references users(id),
-  assigned_agent_id TEXT references agents(id),
-  task_type text not null, -- 'GENERATE_LANDING_PAGE'
-  status text default 'PENDING', -- 'PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL', 'COMPLETED', 'FAILED'
-  payload TEXT, -- The input data
-  result TEXT, -- The output data
-  confidence_score float, -- 0.0 to 1.0
-  created_at TEXT default (strftime('%Y-%m-%d %H:%M:%S', 'now'))
+-- Task Queue for agent tasks
+CREATE TABLE IF NOT EXISTS task_queue (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    agent_id UUID REFERENCES agents(id),
+    task_type VARCHAR(100) NOT NULL,
+    payload JSONB NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending',
+    priority INTEGER DEFAULT 0,
+    result JSONB,
+    error TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    started_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE
 );
 
--- 6. AUDIT LOG (The Security Trace)
-create table audit_log (
-  id TEXT primary key,
-  user_id TEXT references users(id),
-  action text not null,
-  details TEXT,
-  timestamp TEXT default (strftime('%Y-%m-%d %H:%M:%S', 'now'))
+-- Audit Log for compliance and debugging
+CREATE TABLE IF NOT EXISTS audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(100) NOT NULL,
+    resource_type VARCHAR(100),
+    resource_id UUID,
+    details JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Generated Content table for storing agent outputs
+CREATE TABLE IF NOT EXISTS generated_content (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    agent_id UUID REFERENCES agents(id),
+    content_type VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}',
+    embedding vector(1536),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Conversations table for chat history
+CREATE TABLE IF NOT EXISTS conversations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    thread_id VARCHAR(255) NOT NULL,
+    agent_type VARCHAR(50) NOT NULL,
+    messages JSONB DEFAULT '[]',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, thread_id)
+);
+
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_brand_dna_user_id ON brand_dna(user_id);
+CREATE INDEX IF NOT EXISTS idx_context_lake_user_id ON context_lake(user_id);
+CREATE INDEX IF NOT EXISTS idx_context_lake_type ON context_lake(context_type);
+CREATE INDEX IF NOT EXISTS idx_task_queue_status ON task_queue(status);
+CREATE INDEX IF NOT EXISTS idx_task_queue_user_id ON task_queue(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_generated_content_user_id ON generated_content(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_thread_id ON conversations(thread_id);
+
+-- Vector similarity index for semantic search
+CREATE INDEX IF NOT EXISTS idx_context_lake_embedding ON context_lake
+    USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_generated_content_embedding ON generated_content
+    USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+"""
+
+# Initial seed data
+SEED_SQL = """
+-- Insert default agents
+INSERT INTO agents (name, type, description, config) VALUES
+    ('The Scribe', 'marketing', 'Marketing content generation and brand voice consistency',
+     '{"model": "gpt-4-turbo-preview", "temperature": 0.7}'),
+    ('The Architect', 'builder', 'React/Next.js UI component generation',
+     '{"model": "gpt-4-turbo-preview", "temperature": 0.3}'),
+    ('The Sentry', 'analytics', 'Performance monitoring and analytics',
+     '{"model": "gpt-4-turbo-preview", "temperature": 0.2}')
+ON CONFLICT DO NOTHING;
+
+-- Insert a demo user for development
+INSERT INTO users (email, name, subscription_tier) VALUES
+    ('dev@synapse.local', 'Development User', 'enterprise')
+ON CONFLICT (email) DO NOTHING;
+
+-- Insert sample brand DNA for demo user
+INSERT INTO brand_dna (user_id, voice_tone, visual_style, keywords, avoid_phrases, brand_values)
+SELECT id,
+    'Professional yet approachable, confident but not arrogant',
+    'Modern, clean, with subtle gradients and glass effects',
+    ARRAY['innovative', 'reliable', 'expert', 'trusted'],
+    ARRAY['jargon', 'passive voice', 'clichés', 'buzzwords'],
+    ARRAY['excellence', 'integrity', 'innovation', 'customer-first']
+FROM users WHERE email = 'dev@synapse.local'
+ON CONFLICT (user_id) DO NOTHING;
 """
 
 
-def initialize_sqlite_db():
-    """
-    Initializes the SQLite database with the adapted schema and seeds initial data.
-    """
-    conn = None
+def init_database():
+    """Initialize the database with schema and seed data."""
     try:
-        db_path = os.path.join(os.path.dirname(__file__), DATABASE_FILE)
-        conn = sqlite3.connect(db_path)
+        import psycopg2
+
+        logger.info("Connecting to database...")
+        conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
 
-        # Execute the adapted schema
-        cursor.executescript(SQLITE_SCHEMA)
+        logger.info("Creating schema...")
+        cursor.execute(SCHEMA_SQL)
         conn.commit()
-        print(
-            f"SQLite database '{DATABASE_FILE}' initialized successfully with adapted schema."
-        )
+        logger.info("Schema created successfully")
 
-        # --- Seed initial data ---
-        # 1. Insert a sample user
-        sample_user_id = str(uuid.uuid4())
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute(
-            "INSERT OR IGNORE INTO users (id, email, full_name, created_at) VALUES (?, ?, ?, ?)",
-            (sample_user_id, "test@example.com", "Test User", current_time),
-        )
-        print(f"Inserted sample user with ID: {sample_user_id}")
-
-        # 2. Insert sample brand_dna for the user
-        sample_brand_dna = {
-            "voice": "witty and professional",
-            "tone": "friendly and informative",
-            "keywords": ["AI", "marketing", "automation", "synapse"],
-            "target_audience": "small business owners",
-            "style_guide": "Use clear, concise language. Avoid jargon where possible. Maintain a positive outlook.",
-        }
-        cursor.execute(
-            "INSERT OR IGNORE INTO brand_dna (id, user_id, parameters, updated_at) VALUES (?, ?, ?, ?)",
-            (
-                str(uuid.uuid4()),
-                sample_user_id,
-                json.dumps(sample_brand_dna),
-                current_time,
-            ),
-        )
-        print(f"Inserted sample brand_dna for user ID: {sample_user_id}")
-
+        logger.info("Inserting seed data...")
+        cursor.execute(SEED_SQL)
         conn.commit()
-        print("Initial data seeded successfully.")
+        logger.info("Seed data inserted successfully")
 
-    except sqlite3.Error as e:
-        print(f"Error initializing SQLite database or seeding data: {e}")
-    finally:
-        if conn:
-            conn.close()
+        # Verify tables
+        cursor.execute(
+            """
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public'
+            ORDER BY table_name;
+        """
+        )
+        tables = cursor.fetchall()
+        logger.info(f"Created tables: {[t[0] for t in tables]}")
+
+        cursor.close()
+        conn.close()
+
+        logger.info("Database initialization complete!")
+        return True
+
+    except ImportError:
+        logger.error(
+            "psycopg2 not installed. Install with: pip install psycopg2-binary"
+        )
+        return False
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        return False
+
+
+def check_database():
+    """Check database connection and status."""
+    try:
+        import psycopg2
+
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT version();")
+        version = cursor.fetchone()[0]
+        logger.info(f"PostgreSQL version: {version}")
+
+        cursor.execute(
+            """
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public'
+            ORDER BY table_name;
+        """
+        )
+        tables = [t[0] for t in cursor.fetchall()]
+        logger.info(f"Existing tables: {tables}")
+
+        # Check for pgvector
+        cursor.execute("SELECT extname FROM pg_extension WHERE extname = 'vector';")
+        has_vector = cursor.fetchone() is not None
+        logger.info(
+            f"pgvector extension: {'installed' if has_vector else 'not installed'}"
+        )
+
+        cursor.close()
+        conn.close()
+
+        return True
+
+    except ImportError:
+        logger.error("psycopg2 not installed")
+        return False
+    except Exception as e:
+        logger.error(f"Database check failed: {e}")
+        return False
+
+
+def drop_all_tables():
+    """Drop all tables (use with caution!)."""
+    try:
+        import psycopg2
+
+        logger.warning("Dropping all tables...")
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            DROP TABLE IF EXISTS
+                audit_log,
+                generated_content,
+                conversations,
+                task_queue,
+                context_lake,
+                brand_dna,
+                agents,
+                users
+            CASCADE;
+        """
+        )
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        logger.info("All tables dropped")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to drop tables: {e}")
+        return False
 
 
 if __name__ == "__main__":
-    initialize_sqlite_db()
+    if len(sys.argv) > 1:
+        command = sys.argv[1]
+        if command == "check":
+            check_database()
+        elif command == "reset":
+            drop_all_tables()
+            init_database()
+        elif command == "drop":
+            drop_all_tables()
+        else:
+            print(f"Unknown command: {command}")
+            print("Usage: python init_db.py [check|reset|drop]")
+    else:
+        init_database()
