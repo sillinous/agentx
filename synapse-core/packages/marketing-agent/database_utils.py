@@ -8,7 +8,6 @@ import json
 import logging
 from typing import Optional
 from contextlib import contextmanager
-from datetime import datetime, UTC
 
 logger = logging.getLogger(__name__)
 

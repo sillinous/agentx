@@ -4,26 +4,21 @@ Tests use mock database connections when PostgreSQL is not available.
 """
 
 import os
-import json
-import pytest
-from unittest.mock import patch, MagicMock
-
-# Test environment is set in conftest.py
-
 import sys
 from pathlib import Path
 
+# Add parent to path before importing database_utils
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from database_utils import (
+import pytest  # noqa: E402
+from unittest.mock import patch, MagicMock  # noqa: E402
+
+from database_utils import (  # noqa: E402
     DatabaseConnection,
     MockConnection,
     MockCursor,
     check_database_health,
     get_brand_dna,
-    save_brand_dna,
-    store_context,
-    search_context,
     log_audit_event,
     get_user_by_email,
     get_user_by_id,
@@ -36,7 +31,6 @@ from database_utils import (
     search_similar_content,
     generate_embedding,
     get_agent_config,
-    db,
 )
 
 

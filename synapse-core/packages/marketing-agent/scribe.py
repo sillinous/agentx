@@ -20,7 +20,6 @@ from langgraph.checkpoint.memory import MemorySaver
 try:
     from database_utils import (
         get_brand_dna,
-        store_context,
         search_context,
         generate_embedding,
     )
