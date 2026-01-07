@@ -16,6 +16,19 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 
+# Import database utilities
+try:
+    from database_utils import (
+        get_brand_dna,
+        store_context,
+        search_context,
+        generate_embedding,
+    )
+
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,7 +55,26 @@ def get_brand_voice(user_id: str) -> str:
     Returns:
         Brand voice guidelines as a string
     """
-    # Placeholder - will integrate with database
+    # Try to fetch from database if available
+    if DB_AVAILABLE:
+        try:
+            brand_dna = get_brand_dna(user_id)
+            if brand_dna:
+                return json.dumps(
+                    {
+                        "tone": brand_dna.get(
+                            "voice_tone", "professional yet approachable"
+                        ),
+                        "style": brand_dna.get("visual_style", "clear and concise"),
+                        "keywords": brand_dna.get("keywords", []),
+                        "avoid": brand_dna.get("avoid_phrases", []),
+                        "values": brand_dna.get("brand_values", []),
+                    }
+                )
+        except Exception as e:
+            logger.warning(f"Failed to fetch brand DNA from database: {e}")
+
+    # Default fallback
     default_voice = {
         "tone": "professional yet approachable",
         "style": "clear and concise",
@@ -50,6 +82,47 @@ def get_brand_voice(user_id: str) -> str:
         "avoid": ["jargon", "passive voice", "clichés"],
     }
     return json.dumps(default_voice)
+
+
+@tool
+def get_relevant_context(user_id: str, query: str, limit: int = 3) -> str:
+    """
+    Search for relevant context from the user's history using semantic search.
+
+    Args:
+        user_id: The user's unique identifier
+        query: The search query
+        limit: Maximum number of results to return
+
+    Returns:
+        Relevant context as a JSON string
+    """
+    if DB_AVAILABLE:
+        try:
+            # Generate embedding for the query
+            embedding = generate_embedding(query)
+            if embedding:
+                results = search_context(user_id, embedding, limit=limit)
+                if results:
+                    return json.dumps(
+                        {
+                            "found": len(results),
+                            "context": [
+                                {
+                                    "type": r.get("context_type"),
+                                    "content": r.get("content"),
+                                    "similarity": r.get("similarity", 0),
+                                }
+                                for r in results
+                            ],
+                        }
+                    )
+        except Exception as e:
+            logger.warning(f"Failed to search context: {e}")
+
+    return json.dumps(
+        {"found": 0, "context": [], "message": "No relevant context found"}
+    )
 
 
 @tool
@@ -90,7 +163,9 @@ def optimize_for_seo(content: str, keywords: list[str]) -> dict:
 
     for kw in keywords:
         count = content_lower.count(kw.lower())
-        keyword_density[kw] = round((count / word_count) * 100, 2) if word_count > 0 else 0
+        keyword_density[kw] = (
+            round((count / word_count) * 100, 2) if word_count > 0 else 0
+        )
 
     return {
         "word_count": word_count,
@@ -133,7 +208,13 @@ def create_scribe_agent():
         temperature=0.7,
     )
 
-    tools = [get_brand_voice, analyze_sentiment, optimize_for_seo, generate_content_variations]
+    tools = [
+        get_brand_voice,
+        get_relevant_context,
+        analyze_sentiment,
+        optimize_for_seo,
+        generate_content_variations,
+    ]
     model_with_tools = model.bind_tools(tools)
 
     system_prompt = """You are The Scribe, an expert marketing content agent for Synapse Core.
@@ -145,12 +226,14 @@ Your responsibilities:
 4. Provide SEO-optimized content when requested
 
 You have access to tools for:
-- Retrieving brand voice guidelines
-- Analyzing sentiment and tone
-- Optimizing content for SEO
-- Generating content variations
+- Retrieving brand voice guidelines (get_brand_voice)
+- Searching relevant context from user history (get_relevant_context)
+- Analyzing sentiment and tone (analyze_sentiment)
+- Optimizing content for SEO (optimize_for_seo)
+- Generating content variations (generate_content_variations)
 
 Always start by checking the brand voice guidelines before creating content.
+Consider searching for relevant context to maintain consistency with past content.
 Provide clear, engaging, and professional marketing copy.
 
 Format your responses as JSON when possible:

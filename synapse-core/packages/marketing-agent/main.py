@@ -20,6 +20,21 @@ from auth import (
     Token,
 )
 
+# Import database utilities for persistence
+try:
+    from database_utils import (
+        save_conversation,
+        get_conversation,
+        save_generated_content,
+        log_audit_event,
+        store_context,
+        generate_embedding,
+    )
+
+    DB_PERSISTENCE_AVAILABLE = True
+except ImportError:
+    DB_PERSISTENCE_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -66,6 +81,7 @@ class MockAgent:
     def invoke(self, input_data, config=None):
         class MockMessage:
             content = '{"type": "text", "content": "Agent response placeholder"}'
+
         return {"messages": [MockMessage()]}
 
 
@@ -81,6 +97,7 @@ def load_agents():
     if os.getenv("OPENAI_API_KEY") and not os.getenv("TESTING"):
         try:
             from scribe import scribe_agent_app
+
             agents["scribe"] = scribe_agent_app
             logger.info("Loaded real Scribe agent")
         except Exception as e:
@@ -88,22 +105,29 @@ def load_agents():
 
         try:
             import sys
-            builder_path = str(__file__).replace(
-                "/marketing-agent/", "/builder-agent/"
-            ).rsplit("/", 1)[0]
+
+            builder_path = (
+                str(__file__)
+                .replace("/marketing-agent/", "/builder-agent/")
+                .rsplit("/", 1)[0]
+            )
             sys.path.insert(0, builder_path)
             from architect import architect_agent_app
+
             agents["architect"] = architect_agent_app
             logger.info("Loaded real Architect agent")
         except Exception as e:
             logger.warning(f"Failed to load Architect agent: {e}")
 
         try:
-            analytics_path = str(__file__).replace(
-                "/marketing-agent/", "/analytics-agent/"
-            ).rsplit("/", 1)[0]
+            analytics_path = (
+                str(__file__)
+                .replace("/marketing-agent/", "/analytics-agent/")
+                .rsplit("/", 1)[0]
+            )
             sys.path.insert(0, analytics_path)
             from sentry import sentry_agent_app
+
             agents["sentry"] = sentry_agent_app
             logger.info("Loaded real Sentry agent")
         except Exception as e:
@@ -135,6 +159,103 @@ def parse_agent_response(content: str) -> dict:
         return {"type": "text", "content": str(content)}
 
 
+async def persist_agent_interaction(
+    user_id: str,
+    thread_id: str,
+    agent_type: str,
+    prompt: str,
+    response: dict,
+) -> None:
+    """
+    Persist agent interaction to database.
+
+    Args:
+        user_id: The user's identifier
+        thread_id: The conversation thread ID
+        agent_type: Type of agent (scribe, architect, sentry)
+        prompt: The user's prompt
+        response: The parsed agent response
+    """
+    if not DB_PERSISTENCE_AVAILABLE:
+        return
+
+    try:
+        # Fetch existing conversation to append messages
+        existing = get_conversation(user_id, thread_id)
+        messages = existing.get("messages", []) if existing else []
+
+        # Append new messages
+        messages.append(
+            {
+                "role": "user",
+                "content": prompt,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
+        messages.append(
+            {
+                "role": "assistant",
+                "content": response,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
+
+        # Save conversation
+        save_conversation(user_id, thread_id, agent_type, messages)
+
+        # If this is content generation, save to generated_content
+        response_type = (
+            response.get("type", "text") if isinstance(response, dict) else "text"
+        )
+        if response_type in ("content", "component", "analytics_report"):
+            content_str = (
+                json.dumps(response) if isinstance(response, dict) else str(response)
+            )
+
+            # Generate embedding for semantic search
+            embedding = None
+            if len(content_str) > 50:  # Only embed meaningful content
+                embedding = generate_embedding(content_str[:2000])
+
+            save_generated_content(
+                user_id=user_id,
+                content_type=response_type,
+                content=content_str,
+                metadata={
+                    "thread_id": thread_id,
+                    "prompt": prompt[:500],  # Truncate for metadata
+                },
+                agent_type=agent_type,
+                embedding=embedding,
+            )
+
+        # Store in context lake for future semantic search
+        store_context(
+            user_id=user_id,
+            context_type=f"agent_response_{agent_type}",
+            content={
+                "prompt": prompt,
+                "response": response,
+                "thread_id": thread_id,
+            },
+            embedding=generate_embedding(f"{prompt} {json.dumps(response)[:500]}"),
+        )
+
+        # Log audit event
+        log_audit_event(
+            user_id=user_id,
+            action=f"invoke_{agent_type}",
+            resource_type="agent",
+            details={
+                "thread_id": thread_id,
+                "response_type": response_type,
+            },
+        )
+
+    except Exception as e:
+        logger.warning(f"Failed to persist agent interaction: {e}")
+
+
 def check_database_health() -> dict:
     """
     Check database connectivity and health.
@@ -144,6 +265,7 @@ def check_database_health() -> dict:
     """
     try:
         from database_utils import check_database_health as db_health_check
+
         return db_health_check()
     except ImportError:
         # Fallback if database_utils not available
@@ -267,6 +389,15 @@ async def invoke_scribe(
     last_message = result["messages"][-1]
     parsed_response = parse_agent_response(last_message.content)
 
+    # Persist the interaction to database
+    await persist_agent_interaction(
+        user_id=user_id,
+        thread_id=request.thread_id,
+        agent_type="scribe",
+        prompt=request.prompt,
+        response=parsed_response,
+    )
+
     return AgentResponse(
         response=parsed_response,
         thread_id=request.thread_id,
@@ -298,6 +429,15 @@ async def invoke_architect(
 
     last_message = result["messages"][-1]
     parsed_response = parse_agent_response(last_message.content)
+
+    # Persist the interaction to database
+    await persist_agent_interaction(
+        user_id=user_id,
+        thread_id=request.thread_id,
+        agent_type="architect",
+        prompt=request.prompt,
+        response=parsed_response,
+    )
 
     return AgentResponse(
         response=parsed_response,
@@ -331,12 +471,187 @@ async def invoke_sentry(
     last_message = result["messages"][-1]
     parsed_response = parse_agent_response(last_message.content)
 
+    # Persist the interaction to database
+    await persist_agent_interaction(
+        user_id=user_id,
+        thread_id=request.thread_id,
+        agent_type="sentry",
+        prompt=request.prompt,
+        response=parsed_response,
+    )
+
     return AgentResponse(
         response=parsed_response,
         thread_id=request.thread_id,
         agent="sentry",
         timestamp=datetime.now(UTC).isoformat(),
     )
+
+
+# --- Conversation & Content Endpoints ---
+@app.get("/conversations/{thread_id}")
+async def get_conversation_history(
+    thread_id: str,
+    authorization: str = Header(...),
+):
+    """Retrieve conversation history for a thread."""
+    token = extract_token_from_header(authorization)
+    token_data = decode_access_token(token)
+
+    if not DB_PERSISTENCE_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database persistence not available",
+        )
+
+    try:
+        conversation = get_conversation(token_data.user_id, thread_id)
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found",
+            )
+        return conversation
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching conversation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch conversation",
+        )
+
+
+@app.get("/conversations")
+async def list_conversations(
+    authorization: str = Header(...),
+    agent_type: Optional[str] = None,
+    limit: int = 20,
+):
+    """List recent conversations for the authenticated user."""
+    token = extract_token_from_header(authorization)
+    token_data = decode_access_token(token)
+
+    if not DB_PERSISTENCE_AVAILABLE:
+        return {"conversations": [], "message": "Database persistence not available"}
+
+    try:
+        from database_utils import get_user_conversations
+
+        conversations = get_user_conversations(token_data.user_id, agent_type, limit)
+        return {"conversations": conversations, "count": len(conversations)}
+    except Exception as e:
+        logger.error(f"Error listing conversations: {e}")
+        return {"conversations": [], "error": str(e)}
+
+
+@app.get("/content")
+async def list_generated_content(
+    authorization: str = Header(...),
+    content_type: Optional[str] = None,
+    limit: int = 20,
+):
+    """List recent generated content for the authenticated user."""
+    token = extract_token_from_header(authorization)
+    token_data = decode_access_token(token)
+
+    if not DB_PERSISTENCE_AVAILABLE:
+        return {"content": [], "message": "Database persistence not available"}
+
+    try:
+        from database_utils import get_user_content
+
+        content = get_user_content(token_data.user_id, content_type, limit)
+        return {"content": content, "count": len(content)}
+    except Exception as e:
+        logger.error(f"Error listing content: {e}")
+        return {"content": [], "error": str(e)}
+
+
+@app.get("/content/{content_id}")
+async def get_content_by_id(
+    content_id: str,
+    authorization: str = Header(...),
+):
+    """Retrieve generated content by ID."""
+    token = extract_token_from_header(authorization)
+    token_data = decode_access_token(token)
+
+    if not DB_PERSISTENCE_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database persistence not available",
+        )
+
+    try:
+        from database_utils import get_generated_content
+
+        content = get_generated_content(content_id)
+        if not content:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Content not found",
+            )
+        # Verify user owns this content
+        if content.get("user_id") != token_data.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied",
+            )
+        return content
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching content: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch content",
+        )
+
+
+@app.post("/content/search")
+async def search_content(
+    query: str,
+    authorization: str = Header(...),
+    content_type: Optional[str] = None,
+    limit: int = 5,
+):
+    """Search generated content using semantic similarity."""
+    token = extract_token_from_header(authorization)
+    token_data = decode_access_token(token)
+
+    if not DB_PERSISTENCE_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database persistence not available",
+        )
+
+    try:
+        from database_utils import search_similar_content, generate_embedding
+
+        # Generate embedding for the query
+        query_embedding = generate_embedding(query)
+        if not query_embedding:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to generate embedding for query",
+            )
+
+        results = search_similar_content(
+            token_data.user_id,
+            query_embedding,
+            content_type,
+            limit,
+        )
+        return {"results": results, "count": len(results), "query": query}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error searching content: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to search content",
+        )
 
 
 # --- Main Entry Point ---

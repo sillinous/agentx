@@ -114,7 +114,7 @@ def generate_component_tests(component_code: str, component_name: str) -> str:
     Returns:
         Test file content
     """
-    return f'''import {{ render, screen }} from '@testing-library/react';
+    return f"""import {{ render, screen }} from '@testing-library/react';
 import {{ {component_name} }} from './{component_name}';
 
 describe('{component_name}', () => {{
@@ -133,7 +133,7 @@ describe('{component_name}', () => {{
     // Add click simulation
   }});
 }});
-'''
+"""
 
 
 # --- Agent Node Functions ---

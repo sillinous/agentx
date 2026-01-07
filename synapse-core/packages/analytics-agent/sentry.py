@@ -80,21 +80,25 @@ def detect_anomalies(metrics: dict) -> dict:
 
     # Check for slow page loads
     if metrics.get("page_load_time", {}).get("p95_ms", 0) > 3000:
-        anomalies.append({
-            "type": "slow_page_load",
-            "severity": "warning",
-            "message": "P95 page load time exceeds 3 seconds",
-            "recommendation": "Consider optimizing images and reducing JavaScript bundle size",
-        })
+        anomalies.append(
+            {
+                "type": "slow_page_load",
+                "severity": "warning",
+                "message": "P95 page load time exceeds 3 seconds",
+                "recommendation": "Consider optimizing images and reducing JavaScript bundle size",
+            }
+        )
 
     # Check error rate
     if metrics.get("error_rate", 0) > 0.05:
-        anomalies.append({
-            "type": "high_error_rate",
-            "severity": "critical",
-            "message": f"Error rate at {metrics.get('error_rate', 0) * 100:.1f}%",
-            "recommendation": "Review recent deployments and check error logs",
-        })
+        anomalies.append(
+            {
+                "type": "high_error_rate",
+                "severity": "critical",
+                "message": f"Error rate at {metrics.get('error_rate', 0) * 100:.1f}%",
+                "recommendation": "Review recent deployments and check error logs",
+            }
+        )
 
     return {
         "anomalies_detected": len(anomalies),
@@ -158,29 +162,35 @@ def generate_insights_report(metrics: dict, trends: dict) -> dict:
 
     # Performance insights
     if metrics.get("page_load_time", {}).get("avg_ms", 0) > 2000:
-        insights.append({
-            "category": "performance",
-            "insight": "Average page load time is above optimal threshold",
-            "impact": "high",
-            "action": "Implement lazy loading and optimize critical rendering path",
-        })
+        insights.append(
+            {
+                "category": "performance",
+                "insight": "Average page load time is above optimal threshold",
+                "impact": "high",
+                "action": "Implement lazy loading and optimize critical rendering path",
+            }
+        )
 
     # Traffic insights
     if trends.get("trend", {}).get("visitors_change", 0) > 0.1:
-        insights.append({
-            "category": "growth",
-            "insight": f"Traffic increased by {trends['trend']['visitors_change']*100:.0f}% this period",
-            "impact": "positive",
-            "action": "Scale infrastructure proactively to handle increased load",
-        })
+        insights.append(
+            {
+                "category": "growth",
+                "insight": f"Traffic increased by {trends['trend']['visitors_change']*100:.0f}% this period",
+                "impact": "positive",
+                "action": "Scale infrastructure proactively to handle increased load",
+            }
+        )
 
     if trends.get("bounce_rate", 1) > 0.5:
-        insights.append({
-            "category": "engagement",
-            "insight": "Bounce rate is above 50%",
-            "impact": "medium",
-            "action": "Review landing page content and improve calls-to-action",
-        })
+        insights.append(
+            {
+                "category": "engagement",
+                "insight": "Bounce rate is above 50%",
+                "impact": "medium",
+                "action": "Review landing page content and improve calls-to-action",
+            }
+        )
 
     return {
         "generated_at": datetime.now(UTC).isoformat(),
@@ -191,7 +201,9 @@ def generate_insights_report(metrics: dict, trends: dict) -> dict:
 
 
 @tool
-def set_alert_threshold(metric_name: str, threshold: float, comparison: str = "gt") -> dict:
+def set_alert_threshold(
+    metric_name: str, threshold: float, comparison: str = "gt"
+) -> dict:
     """
     Configure an alert threshold for a metric.
 

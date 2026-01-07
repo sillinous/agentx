@@ -37,7 +37,9 @@ class TestGetPerformanceMetrics:
 
     def test_returns_metrics_structure(self):
         """Test that performance metrics returns expected structure."""
-        result = get_performance_metrics.invoke({"user_id": "user-123", "time_range": "24h"})
+        result = get_performance_metrics.invoke(
+            {"user_id": "user-123", "time_range": "24h"}
+        )
 
         assert "time_range" in result
         assert result["time_range"] == "24h"
@@ -74,7 +76,9 @@ class TestGetPerformanceMetrics:
 
     def test_custom_time_range(self):
         """Test that custom time range is used."""
-        result = get_performance_metrics.invoke({"user_id": "user-123", "time_range": "7d"})
+        result = get_performance_metrics.invoke(
+            {"user_id": "user-123", "time_range": "7d"}
+        )
         assert result["time_range"] == "7d"
 
 
@@ -275,11 +279,13 @@ class TestSetAlertThreshold:
 
     def test_returns_configuration(self):
         """Test that alert threshold returns configuration."""
-        result = set_alert_threshold.invoke({
-            "metric_name": "error_rate",
-            "threshold": 0.05,
-            "comparison": "gt",
-        })
+        result = set_alert_threshold.invoke(
+            {
+                "metric_name": "error_rate",
+                "threshold": 0.05,
+                "comparison": "gt",
+            }
+        )
 
         assert result["status"] == "configured"
         assert "alert" in result
@@ -287,10 +293,12 @@ class TestSetAlertThreshold:
 
     def test_alert_config_structure(self):
         """Test that alert configuration has required fields."""
-        result = set_alert_threshold.invoke({
-            "metric_name": "page_load_time",
-            "threshold": 3000,
-        })
+        result = set_alert_threshold.invoke(
+            {
+                "metric_name": "page_load_time",
+                "threshold": 3000,
+            }
+        )
 
         alert = result["alert"]
         assert alert["metric"] == "page_load_time"
@@ -300,29 +308,35 @@ class TestSetAlertThreshold:
 
     def test_default_comparison(self):
         """Test that default comparison is 'gt'."""
-        result = set_alert_threshold.invoke({
-            "metric_name": "error_rate",
-            "threshold": 0.05,
-        })
+        result = set_alert_threshold.invoke(
+            {
+                "metric_name": "error_rate",
+                "threshold": 0.05,
+            }
+        )
 
         assert result["alert"]["comparison"] == "gt"
 
     def test_custom_comparison(self):
         """Test that custom comparison is used."""
-        result = set_alert_threshold.invoke({
-            "metric_name": "uptime",
-            "threshold": 99.9,
-            "comparison": "lt",
-        })
+        result = set_alert_threshold.invoke(
+            {
+                "metric_name": "uptime",
+                "threshold": 99.9,
+                "comparison": "lt",
+            }
+        )
 
         assert result["alert"]["comparison"] == "lt"
 
     def test_notification_channels_included(self):
         """Test that notification channels are included."""
-        result = set_alert_threshold.invoke({
-            "metric_name": "error_rate",
-            "threshold": 0.05,
-        })
+        result = set_alert_threshold.invoke(
+            {
+                "metric_name": "error_rate",
+                "threshold": 0.05,
+            }
+        )
 
         channels = result["alert"]["notification_channels"]
         assert "email" in channels

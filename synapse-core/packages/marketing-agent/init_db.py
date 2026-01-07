@@ -191,11 +191,13 @@ def init_database():
         logger.info("Seed data inserted successfully")
 
         # Verify tables
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT table_name FROM information_schema.tables
             WHERE table_schema = 'public'
             ORDER BY table_name;
-        """)
+        """
+        )
         tables = cursor.fetchall()
         logger.info(f"Created tables: {[t[0] for t in tables]}")
 
@@ -206,7 +208,9 @@ def init_database():
         return True
 
     except ImportError:
-        logger.error("psycopg2 not installed. Install with: pip install psycopg2-binary")
+        logger.error(
+            "psycopg2 not installed. Install with: pip install psycopg2-binary"
+        )
         return False
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
@@ -225,18 +229,22 @@ def check_database():
         version = cursor.fetchone()[0]
         logger.info(f"PostgreSQL version: {version}")
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT table_name FROM information_schema.tables
             WHERE table_schema = 'public'
             ORDER BY table_name;
-        """)
+        """
+        )
         tables = [t[0] for t in cursor.fetchall()]
         logger.info(f"Existing tables: {tables}")
 
         # Check for pgvector
         cursor.execute("SELECT extname FROM pg_extension WHERE extname = 'vector';")
         has_vector = cursor.fetchone() is not None
-        logger.info(f"pgvector extension: {'installed' if has_vector else 'not installed'}")
+        logger.info(
+            f"pgvector extension: {'installed' if has_vector else 'not installed'}"
+        )
 
         cursor.close()
         conn.close()
@@ -260,7 +268,8 @@ def drop_all_tables():
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             DROP TABLE IF EXISTS
                 audit_log,
                 generated_content,
@@ -271,7 +280,8 @@ def drop_all_tables():
                 agents,
                 users
             CASCADE;
-        """)
+        """
+        )
         conn.commit()
 
         cursor.close()

@@ -35,7 +35,9 @@ class TestAnalyzeComponentStructure:
 
     def test_returns_structure(self):
         """Test that component structure analysis returns expected fields."""
-        result = analyze_component_structure.invoke({"description": "A button with icon"})
+        result = analyze_component_structure.invoke(
+            {"description": "A button with icon"}
+        )
 
         assert "suggested_name" in result
         assert "props" in result
@@ -58,7 +60,9 @@ class TestAnalyzeComponentStructure:
 
     def test_hooks_is_list(self):
         """Test that hooks is a list."""
-        result = analyze_component_structure.invoke({"description": "A stateful widget"})
+        result = analyze_component_structure.invoke(
+            {"description": "A stateful widget"}
+        )
 
         assert isinstance(result["hooks"], list)
 
@@ -89,7 +93,7 @@ class TestValidateReactSyntax:
 
     def test_detects_lowercase_onclick(self):
         """Test that lowercase onclick is detected."""
-        code = '<button onclick={handleClick}>Click</button>'
+        code = "<button onclick={handleClick}>Click</button>"
         result = validate_react_syntax.invoke({"code": code})
 
         assert result["valid"] is False
@@ -199,10 +203,12 @@ class TestGenerateComponentTests:
     def test_generates_test_file_content(self):
         """Test that test file content is generated."""
         code = "const Button = () => <button>Click</button>"
-        result = generate_component_tests.invoke({
-            "component_code": code,
-            "component_name": "Button",
-        })
+        result = generate_component_tests.invoke(
+            {
+                "component_code": code,
+                "component_name": "Button",
+            }
+        )
 
         assert isinstance(result, str)
         assert len(result) > 0
@@ -210,10 +216,12 @@ class TestGenerateComponentTests:
     def test_includes_import_statements(self):
         """Test that test file includes import statements."""
         code = "const Card = () => <div>Card</div>"
-        result = generate_component_tests.invoke({
-            "component_code": code,
-            "component_name": "Card",
-        })
+        result = generate_component_tests.invoke(
+            {
+                "component_code": code,
+                "component_name": "Card",
+            }
+        )
 
         assert "import" in result
         assert "@testing-library/react" in result
@@ -221,10 +229,12 @@ class TestGenerateComponentTests:
     def test_includes_describe_block(self):
         """Test that test file includes describe block."""
         code = "const Modal = () => <div>Modal</div>"
-        result = generate_component_tests.invoke({
-            "component_code": code,
-            "component_name": "Modal",
-        })
+        result = generate_component_tests.invoke(
+            {
+                "component_code": code,
+                "component_name": "Modal",
+            }
+        )
 
         assert "describe(" in result
         assert "'Modal'" in result
@@ -232,10 +242,12 @@ class TestGenerateComponentTests:
     def test_includes_render_test(self):
         """Test that test file includes render test."""
         code = "const Alert = () => <div>Alert</div>"
-        result = generate_component_tests.invoke({
-            "component_code": code,
-            "component_name": "Alert",
-        })
+        result = generate_component_tests.invoke(
+            {
+                "component_code": code,
+                "component_name": "Alert",
+            }
+        )
 
         assert "renders without crashing" in result
         assert "render(" in result
@@ -243,10 +255,12 @@ class TestGenerateComponentTests:
     def test_includes_classname_test(self):
         """Test that test file includes className test."""
         code = "const Badge = () => <span>Badge</span>"
-        result = generate_component_tests.invoke({
-            "component_code": code,
-            "component_name": "Badge",
-        })
+        result = generate_component_tests.invoke(
+            {
+                "component_code": code,
+                "component_name": "Badge",
+            }
+        )
 
         assert "className" in result
         assert "custom-class" in result
@@ -254,10 +268,12 @@ class TestGenerateComponentTests:
     def test_includes_click_handler_test(self):
         """Test that test file includes click handler test."""
         code = "const Link = () => <a>Link</a>"
-        result = generate_component_tests.invoke({
-            "component_code": code,
-            "component_name": "Link",
-        })
+        result = generate_component_tests.invoke(
+            {
+                "component_code": code,
+                "component_name": "Link",
+            }
+        )
 
         assert "handleClick" in result or "onClick" in result
         assert "jest.fn()" in result
@@ -265,10 +281,12 @@ class TestGenerateComponentTests:
     def test_uses_component_name_in_imports(self):
         """Test that component name is used in import path."""
         code = "const Header = () => <header>Header</header>"
-        result = generate_component_tests.invoke({
-            "component_code": code,
-            "component_name": "Header",
-        })
+        result = generate_component_tests.invoke(
+            {
+                "component_code": code,
+                "component_name": "Header",
+            }
+        )
 
         assert "./Header" in result
 
@@ -318,7 +336,7 @@ class TestValidationEdgeCases:
 
     def test_multiple_onclick_handlers(self):
         """Test code with multiple onclick issues."""
-        code = '<button onclick={a}><span onclick={b}>Text</span></button>'
+        code = "<button onclick={a}><span onclick={b}>Text</span></button>"
         result = validate_react_syntax.invoke({"code": code})
 
         assert result["valid"] is False
