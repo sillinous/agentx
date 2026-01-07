@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+import { authenticatedFetch } from '@/lib/auth';
 
 // List conversations
 export async function GET(request: NextRequest) {
@@ -13,13 +12,10 @@ export async function GET(request: NextRequest) {
     if (agentType) params.set('agent_type', agentType);
     params.set('limit', limit);
 
-    const response = await fetch(
-      `${BACKEND_URL}/conversations?${params}`,
-      {
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-      }
-    );
+    const response = await authenticatedFetch(`/conversations?${params}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
