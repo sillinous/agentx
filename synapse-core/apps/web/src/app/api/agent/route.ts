@@ -1,41 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticatedFetch, clearTokenCache, BACKEND_URL } from '@/lib/auth';
 
-const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://127.0.0.1:8000';
 const SUPPORTED_AGENTS = ['scribe', 'architect', 'sentry'];
-
-// Token cache for development mode
-let cachedToken: string | null = null;
-let tokenExpiry: number = 0;
-
-/**
- * Fetches a development token from the backend.
- * Caches the token to avoid repeated requests.
- */
-async function getDevToken(): Promise<string> {
-  const now = Date.now();
-
-  // Return cached token if still valid (with 5 min buffer)
-  if (cachedToken && tokenExpiry > now + 5 * 60 * 1000) {
-    return cachedToken;
-  }
-
-  const response = await fetch(`${FASTAPI_BASE_URL}/auth/dev-token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to get dev token: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const token: string = data.access_token;
-  cachedToken = token;
-  // Tokens expire in 24h, cache for 23h
-  tokenExpiry = now + 23 * 60 * 60 * 1000;
-
-  return token;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -59,17 +25,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get authentication token
-    let token: string;
-    try {
-      token = await getDevToken();
-    } catch {
-      return NextResponse.json(
-        { error: 'Failed to authenticate with backend service' },
-        { status: 503 }
-      );
-    }
-
     // Build request body based on agent type
     const requestBody: Record<string, string> = {
       thread_id,
@@ -81,13 +36,9 @@ export async function POST(req: NextRequest) {
       requestBody.user_id = user_id;
     }
 
-    // Invoke the agent
-    const response = await fetch(`${FASTAPI_BASE_URL}/invoke/${agent}`, {
+    // Invoke the agent with authentication
+    const response = await authenticatedFetch(`/invoke/${agent}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
       body: JSON.stringify(requestBody),
     });
 
@@ -96,8 +47,7 @@ export async function POST(req: NextRequest) {
 
       // Handle auth errors by clearing cached token
       if (response.status === 401) {
-        cachedToken = null;
-        tokenExpiry = 0;
+        clearTokenCache();
       }
 
       return NextResponse.json(
@@ -120,7 +70,7 @@ export async function POST(req: NextRequest) {
  */
 export async function GET() {
   try {
-    const response = await fetch(`${FASTAPI_BASE_URL}/`, {
+    const response = await fetch(`${BACKEND_URL}/`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
