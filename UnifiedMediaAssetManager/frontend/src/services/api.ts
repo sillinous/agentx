@@ -3,6 +3,9 @@
 // Default to the backend's uvicorn port (8000). Override with `NEXT_PUBLIC_API_URL`.
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
+// Auth error event for cross-component communication
+export const AUTH_ERROR_EVENT = 'auth:error';
+
 // --- Type Definitions (mirroring backend Pydantic models) ---
 
 export interface BaseComponent {
