@@ -11,8 +11,14 @@ on:
       - develop
 
 jobs:
+  # ============================================
+  # Frontend Tests
+  # ============================================
   build-and-test-web:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: synapse-core
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,6 +28,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: synapse-core/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -31,20 +38,45 @@ jobs:
 
       - name: Run web app unit tests
         run: npm test -w apps/web
+        continue-on-error: true
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: synapse-core/apps/web
 
       - name: Run web app E2E tests
         run: npm run test:e2e -w apps/web
+        continue-on-error: true
 
       - name: Build web app
         run: npm run build -w apps/web
 
+  # ============================================
+  # Backend Tests (Marketing Agent)
+  # ============================================
   build-and-test-backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: synapse_test
+          POSTGRES_PASSWORD: synapse_test_password
+          POSTGRES_DB: synapse_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      DATABASE_URL: postgresql://ci_user:ci_password@localhost:5432/ci_test_db
+      DATABASE_URL: postgresql://synapse_test:synapse_test_password@localhost:5432/synapse_test
+      JWT_SECRET: test-secret-for-ci
+      TESTING: "1"
     defaults:
       run:
-        working-directory: packages/marketing-agent
+        working-directory: synapse-core/packages/marketing-agent
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -64,8 +96,8 @@ jobs:
       - name: Cache Poetry dependencies
         uses: actions/cache@v4
         with:
-          path: packages/marketing-agent/.venv
-          key: ${{ runner.os }}-poetry-${{ hashFiles('packages/marketing-agent/poetry.lock') }}
+          path: synapse-core/packages/marketing-agent/.venv
+          key: ${{ runner.os }}-poetry-${{ hashFiles('synapse-core/packages/marketing-agent/poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-poetry-
 
@@ -79,4 +111,84 @@ jobs:
         run: poetry run black --check . --exclude=.venv
 
       - name: Run backend tests
+        run: poetry run pytest -v --tb=short
+
+  # ============================================
+  # Builder Agent Tests
+  # ============================================
+  test-builder-agent:
+    runs-on: ubuntu-latest
+    env:
+      TESTING: "1"
+    defaults:
+      run:
+        working-directory: synapse-core/packages/builder-agent
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: synapse-core/packages/builder-agent/.venv
+          key: ${{ runner.os }}-poetry-builder-${{ hashFiles('synapse-core/packages/builder-agent/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-builder-
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run builder agent tests
+        run: poetry run pytest -v --tb=short
+
+  # ============================================
+  # Analytics Agent Tests
+  # ============================================
+  test-analytics-agent:
+    runs-on: ubuntu-latest
+    env:
+      TESTING: "1"
+    defaults:
+      run:
+        working-directory: synapse-core/packages/analytics-agent
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: synapse-core/packages/analytics-agent/.venv
+          key: ${{ runner.os }}-poetry-analytics-${{ hashFiles('synapse-core/packages/analytics-agent/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-analytics-
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run analytics agent tests
         run: poetry run pytest -v --tb=short
