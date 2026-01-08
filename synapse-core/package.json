@@ -6,7 +6,18 @@
     "packages/*"
   ],
   "scripts": {
-    "web": "npm run dev -w apps/web",
-    "test": "npm test -w apps/web"
+    "dev": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/web",
+    "start": "npm run start -w apps/web",
+    "lint": "npm run lint -w apps/web",
+    "test": "npm test -w apps/web",
+    "test:e2e": "npm run test:e2e -w apps/web",
+    "format": "npm run format -w apps/web",
+    "backend": "cd packages/marketing-agent && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",
+    "backend:test": "cd packages/marketing-agent && TESTING=true python -m pytest tests/ -v",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "clean": "rm -rf apps/web/.next apps/web/node_modules/.cache"
   }
 }

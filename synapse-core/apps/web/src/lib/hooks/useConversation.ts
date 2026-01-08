@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { synapseAPI } from '../api/client';
-import type { AgentType, ChatMessage, ConversationSummary } from '../api/types';
+import type { AgentType, ConversationSummary } from '../api/types';
 
 interface Message {
   sender: 'user' | 'system';

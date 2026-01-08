@@ -7,7 +7,6 @@ import {
   ChatPanel,
   LiveCanvas,
   ConversationSidebar,
-  AGENTS,
   type AgentKey,
   type KPIData,
   type ActivityItem,
