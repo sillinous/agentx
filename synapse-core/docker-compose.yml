@@ -2,6 +2,30 @@ version: "3.9"
 
 services:
   # ============================================
+  # Nginx Reverse Proxy
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: synapse-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    profiles:
+      - full
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
   # PostgreSQL Database with pgvector
   # ============================================
   postgres:
@@ -62,6 +86,8 @@ services:
     restart: unless-stopped
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8000
+      - BACKEND_URL=http://backend:8000
+      - FASTAPI_BASE_URL=http://backend:8000
     ports:
       - "3000:3000"
     volumes:

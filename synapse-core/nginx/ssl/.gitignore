@@ -1,0 +1,8 @@
+# Ignore SSL certificates (they contain sensitive keys)
+*.pem
+*.key
+*.crt
+
+# Keep this directory
+!.gitignore
+!.gitkeep
