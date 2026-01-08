@@ -9,8 +9,8 @@ services:
     container_name: synapse-nginx
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"   # Host port 8080 to avoid conflicts
+      - "8443:443"  # Host port 8443 to avoid conflicts
     volumes:
       - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
@@ -37,7 +37,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synapse_dev_password_change_in_production}
       POSTGRES_DB: synapse
     ports:
-      - "5432:5432"
+      - "5434:5432"  # Host port 5434 to avoid conflicts
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -61,7 +61,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-development-secret-key-change-in-production}
       - NODE_ENV=${NODE_ENV:-development}
     ports:
-      - "8000:8000"
+      - "8002:8000"  # Host port 8002 to avoid conflicts
     volumes:
       - ./packages/marketing-agent:/app
       - ./packages/builder-agent:/app/../builder-agent
@@ -80,8 +80,8 @@ services:
   # ============================================
   frontend:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/web/Dockerfile
     container_name: synapse-frontend
     restart: unless-stopped
     environment:
@@ -89,10 +89,8 @@ services:
       - BACKEND_URL=http://backend:8000
       - FASTAPI_BASE_URL=http://backend:8000
     ports:
-      - "3000:3000"
-    volumes:
-      - ./apps/web:/app
-      - /app/node_modules
+      - "3002:3000"  # Host port 3002 to avoid conflicts
+    # Note: No volume mounts - uses the built standalone output
     depends_on:
       - backend
     profiles:
@@ -106,7 +104,7 @@ services:
     container_name: synapse-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "6381:6379"  # Host port 6381 to avoid conflicts
     volumes:
       - redis_data:/data
     healthcheck:
