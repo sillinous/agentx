@@ -189,6 +189,38 @@ POSTGRES_PORT=5433
 docker-compose build --no-cache
 ```
 
+### WSL2 Build Failures (Windows)
+
+If you're using WSL2 and see I/O errors during `npm run build`:
+```
+Input/output error (os error 5)
+EIO: i/o error, write
+```
+
+**Solutions:**
+
+1. **Use Docker (Recommended):**
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Move project to WSL2 native filesystem:**
+   ```bash
+   # Clone to ~/projects instead of /mnt/c/...
+   mkdir -p ~/projects
+   cd ~/projects
+   git clone <repo-url> synapse-core
+   ```
+
+3. **Disable Turbopack temporarily:**
+   ```bash
+   # In apps/web/package.json, change:
+   # "build": "next build"
+   # To use webpack instead of Turbopack
+   ```
+
+This is a known issue with Turbopack + WSL2 + Windows filesystem (NTFS) interactions.
+
 ## Next Steps
 
 1. **Customize your brand DNA** - Edit database to add your brand parameters
