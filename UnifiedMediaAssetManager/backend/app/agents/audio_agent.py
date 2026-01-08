@@ -232,11 +232,8 @@ class AudioAgent(BaseAgent):
     """Agent for managing audio processing tasks."""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        super().__init__(
-            name="AudioAgent",
-            model_name="whisper-base",
-            config=config or {}
-        )
+        super().__init__(agent_type="audio")
+        self.config = config or {}
 
         # Determine provider modes from environment
         tts_mode = os.environ.get("AUDIO_TTS_PROVIDER", "mock").lower()
