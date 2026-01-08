@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticatedFetch } from '@/lib/auth';
+
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
 interface RouteContext {
   params: Promise<{ threadId: string }>;
@@ -13,10 +14,13 @@ export async function GET(
   try {
     const { threadId } = await context.params;
 
-    const response = await authenticatedFetch(`/conversations/${threadId}`, {
-      method: 'GET',
-      cache: 'no-store',
-    });
+    const response = await fetch(
+      `${BACKEND_URL}/conversations/${threadId}`,
+      {
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+      }
+    );
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -52,10 +56,14 @@ export async function PUT(
     const { threadId } = await context.params;
     const body = await request.json();
 
-    const response = await authenticatedFetch(`/conversations/${threadId}`, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    });
+    const response = await fetch(
+      `${BACKEND_URL}/conversations/${threadId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
