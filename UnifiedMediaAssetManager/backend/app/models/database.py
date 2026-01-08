@@ -81,7 +81,14 @@ class UserDB(Base):
     __tablename__ = "users"
     id = Column(GUID(), primary_key=True, default=lambda: str(uuid.uuid4()))
     username = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, nullable=True)
     display_name = Column(String, nullable=True)
+    password_hash = Column(String, nullable=True)
+    roles = Column(JSON, default=["viewer"])
+    is_active = Column(Boolean, default=True)
+    is_test_user = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
 
     def __repr__(self):
         return f"<User(id='{self.id}', username='{self.username}')>"

@@ -33,6 +33,8 @@ from .services.video_storage import get_video_storage
 from .api import world_config, entity_traits, timeline
 # Import Phase 4 API routers
 from .api import providers
+# Import authentication API router
+from .api import auth as auth_api
 
 @asynccontextmanager
 async def lifespan(app):
@@ -65,6 +67,8 @@ app.include_router(entity_traits.router)
 app.include_router(timeline.router)
 # Register Phase 4 API routers (Provider Integration)
 app.include_router(providers.router)
+# Register authentication API router
+app.include_router(auth_api.router)
 
 # Ensure DB and media dirs exist at import time for tests that instantiate
 # `TestClient(app)` at module import (some test files do this at top-level).
