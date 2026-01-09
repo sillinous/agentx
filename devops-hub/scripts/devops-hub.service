@@ -1,0 +1,22 @@
+[Unit]
+Description=DevOps Hub - Agent Library Service
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/devops-hub
+Environment="PATH=/opt/devops-hub/venv/bin"
+ExecStart=/opt/devops-hub/venv/bin/gunicorn service.api:app \
+    --bind 0.0.0.0:8100 \
+    --workers 4 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --access-logfile /var/log/devops-hub/access.log \
+    --error-logfile /var/log/devops-hub/error.log
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

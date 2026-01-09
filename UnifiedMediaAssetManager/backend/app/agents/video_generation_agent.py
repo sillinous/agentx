@@ -91,11 +91,8 @@ class VideoGenerationAgent(BaseAgent):
     """Agent for managing video generation."""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        super().__init__(
-            name="VideoGenerationAgent",
-            model_name="claude-3-haiku-20240307",
-            config=config or {}
-        )
+        super().__init__(agent_type="video_generation")
+        self.config = config or {}
 
         # Determine provider mode from environment
         provider_mode = os.environ.get("VIDEO_PROVIDER", "mock").lower()

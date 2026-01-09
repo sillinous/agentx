@@ -1,0 +1,22 @@
+# DevOps Hub Dependencies
+
+# Core
+pydantic>=2.0.0
+
+# Service Layer
+fastapi>=0.100.0
+uvicorn>=0.23.0
+
+# HTTP Client (for SDK)
+httpx>=0.24.0
+requests>=2.31.0
+
+# Cache and Message Queue (optional)
+redis>=5.0.0
+
+# Development
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# Production
+gunicorn>=21.0.0

@@ -526,6 +526,7 @@ class VideoGenerateRequest(BaseModel):
     mood: Optional[int] = 50  # 0-100 slider
     aspect_ratio: str = "16:9"
     duration: int = 5
+    platform: Optional[str] = "youtube"  # Platform optimization
 
 
 class VideoStrategyRequest(BaseModel):
@@ -554,12 +555,12 @@ async def generate_video(
         strategy_agent = VideoStrategyAgent()
         strategy_result = await strategy_agent.process({
             "prompt": request.prompt,
-            "mood": request.mood,
+            "mood_slider": request.mood or 50,
             "platform": request.platform or "youtube",
             "num_variations": 1
         })
 
-        if not strategy_result.get("success"):
+        if not strategy_result.get("variations"):
             raise HTTPException(status_code=500, detail="Strategy generation failed")
 
         # Get first variation
@@ -715,7 +716,7 @@ async def generate_video_strategy(
         agent = VideoStrategyAgent()
         result = await agent.process({
             "prompt": request.prompt,
-            "mood": request.mood,
+            "mood_slider": request.mood,
             "platform": request.platform,
             "num_variations": request.num_variations
         })

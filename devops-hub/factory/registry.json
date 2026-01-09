@@ -1,0 +1,397 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-01-06T12:27:42.837151",
+  "total_agents": 13,
+  "agents": [
+    {
+      "id": "supervisor-agent",
+      "name": "Supervisor Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "system",
+      "type": "supervisor",
+      "description": "Oversees agent ecosystem, coordinates workflows, manages agent lifecycle",
+      "capabilities": [
+        "orchestration",
+        "monitoring",
+        "routing",
+        "agent-lifecycle-management",
+        "workflow-coordination"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "anp/1.0",
+        "mcp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/system/supervisor/agent.py"
+      },
+      "documentation": "docs/agents/supervisor.md",
+      "performance": {
+        "max_concurrent_requests": 1000,
+        "average_latency_ms": 100,
+        "uptime_percent": 99.99
+      }
+    },
+    {
+      "id": "router-agent",
+      "name": "Router Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "system",
+      "type": "coordinator",
+      "description": "Routes incoming requests to appropriate agents based on capability matching",
+      "capabilities": [
+        "request-routing",
+        "agent-discovery",
+        "load-balancing",
+        "capability-matching"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "anp/1.0",
+        "mcp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/system/router/agent.py"
+      },
+      "documentation": "docs/agents/router.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    },
+    {
+      "id": "registry-agent",
+      "name": "Registry Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "system",
+      "type": "coordinator",
+      "description": "Manages ANP discovery and agent registration across the network",
+      "capabilities": [
+        "agent-registration",
+        "agent-discovery",
+        "capability-indexing",
+        "network-topology-management"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "anp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/system/registry/agent.py"
+      },
+      "documentation": "docs/agents/registry.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    },
+    {
+      "id": "monitor-agent",
+      "name": "Monitor Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "system",
+      "type": "analyst",
+      "description": "Monitors agent health, metrics, and performance across ecosystem",
+      "capabilities": [
+        "health-monitoring",
+        "metrics-collection",
+        "performance-tracking",
+        "alerting",
+        "observability"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "anp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/system/monitor/agent.py"
+      },
+      "documentation": "docs/agents/monitor.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    },
+    {
+      "id": "research-analyzer",
+      "name": "Research Analyzer Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "business",
+      "type": "analyst",
+      "description": "Conducts market research, analyzes trends, tracks competitors",
+      "capabilities": [
+        "market-analysis",
+        "trend-prediction",
+        "competitive-intelligence",
+        "data-aggregation",
+        "report-generation"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "mcp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/business/research/agent.py"
+      },
+      "documentation": "docs/agents/research.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    },
+    {
+      "id": "data-processor",
+      "name": "Data Processor Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "business",
+      "type": "worker",
+      "description": "ETL, data transformation, aggregation, and quality assurance",
+      "capabilities": [
+        "data-transformation",
+        "etl",
+        "aggregation",
+        "quality-assurance",
+        "schema-validation"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "mcp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/business/data-processor/agent.py"
+      },
+      "documentation": "docs/agents/data-processor.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    },
+    {
+      "id": "finance-analyst",
+      "name": "Finance Analyst Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "business",
+      "type": "analyst",
+      "description": "Financial analysis, reporting, forecasting, and risk assessment",
+      "capabilities": [
+        "financial-analysis",
+        "forecasting",
+        "risk-assessment",
+        "report-generation",
+        "compliance-tracking"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "mcp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/business/finance/agent.py"
+      },
+      "documentation": "docs/agents/finance.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    },
+    {
+      "id": "project-manager",
+      "name": "Project Manager Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "business",
+      "type": "coordinator",
+      "description": "Project tracking, scheduling, resource allocation, and progress monitoring",
+      "capabilities": [
+        "project-tracking",
+        "scheduling",
+        "resource-allocation",
+        "progress-monitoring",
+        "risk-tracking"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "mcp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/business/project-manager/agent.py"
+      },
+      "documentation": "docs/agents/project-manager.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    },
+    {
+      "id": "content-creator",
+      "name": "Content Creator Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "business",
+      "type": "worker",
+      "description": "Content generation, editing, publishing, and optimization",
+      "capabilities": [
+        "content-generation",
+        "editing",
+        "publishing",
+        "seo-optimization",
+        "style-consistency"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "mcp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/business/content-creator/agent.py"
+      },
+      "documentation": "docs/agents/content-creator.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    },
+    {
+      "id": "code-reviewer",
+      "name": "Code Reviewer Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "utility",
+      "type": "analyst",
+      "description": "Code analysis, suggestions, style checking, and security analysis",
+      "capabilities": [
+        "code-analysis",
+        "security-scanning",
+        "style-checking",
+        "refactoring-suggestions",
+        "performance-analysis"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "mcp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/utility/code-reviewer/agent.py"
+      },
+      "documentation": "docs/agents/code-reviewer.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    },
+    {
+      "id": "documentation-generator",
+      "name": "Documentation Generator Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "utility",
+      "type": "worker",
+      "description": "Auto-documentation generation, API docs, guides, and maintenance",
+      "capabilities": [
+        "auto-documentation",
+        "api-doc-generation",
+        "guide-creation",
+        "example-generation",
+        "doc-maintenance"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "mcp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/utility/doc-generator/agent.py"
+      },
+      "documentation": "docs/agents/doc-generator.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    },
+    {
+      "id": "task-decomposer",
+      "name": "Task Decomposer Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "utility",
+      "type": "worker",
+      "description": "Breaks down complex tasks into subtasks, creates execution plans",
+      "capabilities": [
+        "task-decomposition",
+        "dependency-analysis",
+        "execution-planning",
+        "prioritization",
+        "risk-analysis"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "mcp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/utility/task-decomposer/agent.py"
+      },
+      "documentation": "docs/agents/task-decomposer.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    },
+    {
+      "id": "error-handler",
+      "name": "Error Handler Agent",
+      "version": "1.0.0",
+      "status": "production",
+      "domain": "utility",
+      "type": "worker",
+      "description": "Error analysis, recovery recommendations, escalation routing",
+      "capabilities": [
+        "error-analysis",
+        "root-cause-analysis",
+        "recovery-recommendation",
+        "escalation-routing",
+        "incident-tracking"
+      ],
+      "protocols": [
+        "a2a/1.0",
+        "acp/1.0",
+        "anp/1.0"
+      ],
+      "implementations": {
+        "python": "built-in-agents/utility/error-handler/agent.py"
+      },
+      "documentation": "docs/agents/error-handler.md",
+      "performance": {
+        "max_concurrent_requests": 100,
+        "average_latency_ms": 500,
+        "uptime_percent": 99.9
+      }
+    }
+  ]
+}
