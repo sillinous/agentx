@@ -7,7 +7,15 @@ export interface AgentInvokeRequest {
   thread_id: string;
   prompt: string;
   user_id?: string;
+  stream?: boolean;
 }
+
+// Streaming event types
+export type StreamEvent =
+  | { type: 'start'; agent: AgentType }
+  | { type: 'chunk'; content: string }
+  | { type: 'done'; thread_id: string }
+  | { type: 'error'; message: string };
 
 export interface AgentResponse {
   agent: AgentType;

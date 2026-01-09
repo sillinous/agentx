@@ -5,7 +5,7 @@ const SUPPORTED_AGENTS = ['scribe', 'architect', 'sentry'];
 
 export async function POST(req: NextRequest) {
   try {
-    const { agent, thread_id, prompt, user_id } = await req.json();
+    const { agent, thread_id, prompt, user_id, stream } = await req.json();
 
     // Validate required fields
     if (!agent || !thread_id || !prompt) {
@@ -25,19 +25,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Build request body based on agent type
-    const requestBody: Record<string, string> = {
+    // Build request body for unified invoke endpoint
+    const requestBody: Record<string, unknown> = {
+      agent,
       thread_id,
       prompt,
+      stream: Boolean(stream),
     };
 
-    // Scribe agent accepts optional user_id
-    if (agent === 'scribe' && user_id) {
+    if (user_id) {
       requestBody.user_id = user_id;
     }
 
-    // Invoke the agent with authentication
-    const response = await authenticatedFetch(`/invoke/${agent}`, {
+    // Use unified invoke endpoint
+    const response = await authenticatedFetch('/invoke', {
       method: 'POST',
       body: JSON.stringify(requestBody),
     });
@@ -54,6 +55,17 @@ export async function POST(req: NextRequest) {
         { error: errorData.detail || `Agent invocation failed: ${response.status}` },
         { status: response.status }
       );
+    }
+
+    // Handle streaming response
+    if (stream && response.body) {
+      return new Response(response.body, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      });
     }
 
     const data = await response.json();

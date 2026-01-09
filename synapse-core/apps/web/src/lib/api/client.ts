@@ -8,6 +8,7 @@ import type {
   ContentSearchResponse,
   HealthStatus,
   APIError,
+  StreamEvent,
 } from './types';
 
 // API base URL - uses Next.js API routes as proxy
@@ -52,6 +53,54 @@ export const synapseAPI = {
       method: 'POST',
       body: JSON.stringify(request),
     });
+  },
+
+  // Invoke an agent with streaming response
+  async invokeAgentStream(
+    request: Omit<AgentInvokeRequest, 'stream'>,
+    onEvent: (event: StreamEvent) => void
+  ): Promise<void> {
+    const url = `${API_BASE}/agent`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...request, stream: true }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Stream failed' }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event = JSON.parse(line.slice(6)) as StreamEvent;
+              onEvent(event);
+            } catch {
+              // Skip malformed events
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   },
 
   // Get a specific conversation
