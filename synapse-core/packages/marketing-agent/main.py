@@ -6,19 +6,49 @@ Main entry point for the marketing agent API server.
 import os
 import json
 import logging
-from typing import Optional
+from typing import Optional, Literal, AsyncGenerator
 from datetime import datetime, UTC
+import asyncio
 
 from fastapi import FastAPI, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from auth import (
     create_access_token,
     decode_access_token,
     extract_token_from_header,
     Token,
+    TokenData,
 )
+
+# Development mode - allows unauthenticated access for local testing
+DEV_MODE = os.getenv("DEV_MODE", "true").lower() == "true"
+
+
+def get_user_from_auth(authorization: Optional[str] = None) -> TokenData:
+    """Extract user from auth header, or return dev user in DEV_MODE."""
+    if authorization:
+        try:
+            token = extract_token_from_header(authorization)
+            return decode_access_token(token)
+        except Exception as e:
+            if not DEV_MODE:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=f"Invalid authorization: {e}",
+                )
+            logger.warning(f"Invalid auth header in dev mode, using dev user: {e}")
+
+    if DEV_MODE:
+        # Return a development user
+        return TokenData(user_id="dev-user", email="dev@synapse.local")
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authorization required",
+    )
 
 # Import database utilities for persistence
 try:
@@ -49,6 +79,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Track server startup time for uptime calculation
+_server_start_time = datetime.now(UTC)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -66,10 +99,32 @@ class AgentInvokeRequest(BaseModel):
     user_id: Optional[str] = None
 
 
+class UnifiedInvokeRequest(BaseModel):
+    """Unified request model for invoking any agent."""
+    agent: Literal["scribe", "architect", "sentry"] = Field(
+        ..., description="The agent to invoke"
+    )
+    thread_id: str = Field(..., description="Conversation thread ID")
+    prompt: str = Field(..., description="The user's prompt/request")
+    user_id: Optional[str] = Field(None, description="Optional user ID override")
+    stream: bool = Field(False, description="Enable streaming response")
+
+
 class AgentResponse(BaseModel):
     response: dict
     thread_id: str
     agent: str
+    timestamp: str
+
+
+class HealthResponse(BaseModel):
+    """Detailed health check response."""
+    status: Literal["healthy", "degraded", "unhealthy"]
+    version: str
+    uptime_seconds: float
+    database: dict
+    agents: dict
+    memory_usage_mb: float
     timestamp: str
 
 
@@ -281,6 +336,17 @@ async def root():
     return {
         "message": "Synapse Agent Server is running",
         "version": "1.0.0",
+        "unified_endpoint": {
+            "url": "/invoke",
+            "description": "Unified endpoint for invoking any agent",
+            "supports_streaming": True,
+            "example": {
+                "agent": "scribe",
+                "thread_id": "unique-thread-id",
+                "prompt": "Write a tagline for my product",
+                "stream": False,
+            },
+        },
         "agents": {
             "scribe": {
                 "name": "The Scribe",
@@ -302,24 +368,60 @@ async def root():
 
 
 # --- Health Endpoint ---
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 async def health():
-    """Health check endpoint with database and agent status."""
+    """Enhanced health check with detailed diagnostics."""
+    import psutil
+
     db_health = check_database_health()
 
-    status_value = "healthy" if db_health.get("connected", False) else "degraded"
+    # Calculate uptime
+    uptime = (datetime.now(UTC) - _server_start_time).total_seconds()
 
-    return {
-        "status": status_value,
-        "version": "1.0.0",
-        "database": db_health,
-        "agents": {
-            "scribe": "ready",
-            "architect": "ready",
-            "sentry": "ready",
-        },
-        "timestamp": datetime.now(UTC).isoformat(),
-    }
+    # Check agent status
+    agents_status = {}
+    for agent_name, agent_app in [
+        ("scribe", scribe_agent_app),
+        ("architect", architect_agent_app),
+        ("sentry", sentry_agent_app),
+    ]:
+        try:
+            # Check if it's a mock or real agent
+            is_mock = agent_app.__class__.__name__ == "MockAgent"
+            agents_status[agent_name] = {
+                "status": "ready",
+                "type": "mock" if is_mock else "live",
+            }
+        except Exception as e:
+            agents_status[agent_name] = {"status": "error", "error": str(e)}
+
+    # Determine overall status
+    db_ok = db_health.get("connected", False)
+    agents_ok = all(a.get("status") == "ready" for a in agents_status.values())
+
+    if db_ok and agents_ok:
+        status_value = "healthy"
+    elif agents_ok:
+        status_value = "degraded"
+    else:
+        status_value = "unhealthy"
+
+    # Get memory usage
+    try:
+        process = psutil.Process()
+        memory_mb = process.memory_info().rss / 1024 / 1024
+    except Exception:
+        memory_mb = 0.0
+
+    return HealthResponse(
+        status=status_value,
+        version="1.0.0",
+        uptime_seconds=uptime,
+        database=db_health,
+        agents=agents_status,
+        memory_usage_mb=round(memory_mb, 2),
+        timestamp=datetime.now(UTC).isoformat(),
+    )
 
 
 # --- Auth Endpoints ---
@@ -488,6 +590,136 @@ async def invoke_sentry(
     )
 
 
+# --- Unified Agent Router ---
+AGENT_REGISTRY = {
+    "scribe": scribe_agent_app,
+    "architect": architect_agent_app,
+    "sentry": sentry_agent_app,
+}
+
+
+async def stream_agent_response(
+    agent_app,
+    prompt: str,
+    thread_id: str,
+    user_id: str,
+    agent_name: str,
+) -> AsyncGenerator[str, None]:
+    """Stream agent response as Server-Sent Events."""
+    try:
+        # Send initial event
+        yield f"data: {json.dumps({'type': 'start', 'agent': agent_name})}\n\n"
+
+        # Invoke agent (non-streaming for now, will chunk the response)
+        result = agent_app.invoke(
+            {"messages": [{"role": "user", "content": prompt}]},
+            config={
+                "configurable": {
+                    "thread_id": thread_id,
+                    "user_id": user_id,
+                }
+            },
+        )
+
+        last_message = result["messages"][-1]
+        parsed_response = parse_agent_response(last_message.content)
+
+        # Stream the response in chunks for better UX
+        response_str = json.dumps(parsed_response)
+        chunk_size = 100
+        for i in range(0, len(response_str), chunk_size):
+            chunk = response_str[i : i + chunk_size]
+            yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+            await asyncio.sleep(0.01)  # Small delay for streaming effect
+
+        # Send completion event
+        yield f"data: {json.dumps({'type': 'done', 'thread_id': thread_id})}\n\n"
+
+        # Persist the interaction
+        await persist_agent_interaction(
+            user_id=user_id,
+            thread_id=thread_id,
+            agent_type=agent_name,
+            prompt=prompt,
+            response=parsed_response,
+        )
+
+    except Exception as e:
+        logger.error(f"Stream error for {agent_name}: {e}")
+        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+
+@app.post("/invoke")
+async def unified_invoke(
+    request: UnifiedInvokeRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Unified endpoint to invoke any agent.
+
+    This endpoint routes requests to the appropriate agent based on the
+    'agent' parameter. Supports both regular and streaming responses.
+    """
+    token_data = get_user_from_auth(authorization)
+    user_id = request.user_id or token_data.user_id
+
+    # Get the requested agent
+    agent_app = AGENT_REGISTRY.get(request.agent)
+    if not agent_app:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown agent: {request.agent}. Available: {list(AGENT_REGISTRY.keys())}",
+        )
+
+    # Handle streaming response
+    if request.stream:
+        return StreamingResponse(
+            stream_agent_response(
+                agent_app=agent_app,
+                prompt=request.prompt,
+                thread_id=request.thread_id,
+                user_id=user_id,
+                agent_name=request.agent,
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    # Regular (non-streaming) response
+    result = agent_app.invoke(
+        {"messages": [{"role": "user", "content": request.prompt}]},
+        config={
+            "configurable": {
+                "thread_id": request.thread_id,
+                "user_id": user_id,
+            }
+        },
+    )
+
+    last_message = result["messages"][-1]
+    parsed_response = parse_agent_response(last_message.content)
+
+    # Persist the interaction
+    await persist_agent_interaction(
+        user_id=user_id,
+        thread_id=request.thread_id,
+        agent_type=request.agent,
+        prompt=request.prompt,
+        response=parsed_response,
+    )
+
+    return AgentResponse(
+        response=parsed_response,
+        thread_id=request.thread_id,
+        agent=request.agent,
+        timestamp=datetime.now(UTC).isoformat(),
+    )
+
+
 # --- Conversation & Content Endpoints ---
 @app.get("/conversations/{thread_id}")
 async def get_conversation_history(
@@ -524,13 +756,12 @@ async def get_conversation_history(
 
 @app.get("/conversations")
 async def list_conversations(
-    authorization: str = Header(...),
+    authorization: Optional[str] = Header(None),
     agent_type: Optional[str] = None,
     limit: int = 20,
 ):
     """List recent conversations for the authenticated user."""
-    token = extract_token_from_header(authorization)
-    token_data = decode_access_token(token)
+    token_data = get_user_from_auth(authorization)
 
     if not DB_PERSISTENCE_AVAILABLE:
         return {"conversations": [], "message": "Database persistence not available"}
@@ -547,13 +778,12 @@ async def list_conversations(
 
 @app.get("/content")
 async def list_generated_content(
-    authorization: str = Header(...),
+    authorization: Optional[str] = Header(None),
     content_type: Optional[str] = None,
     limit: int = 20,
 ):
     """List recent generated content for the authenticated user."""
-    token = extract_token_from_header(authorization)
-    token_data = decode_access_token(token)
+    token_data = get_user_from_auth(authorization)
 
     if not DB_PERSISTENCE_AVAILABLE:
         return {"content": [], "message": "Database persistence not available"}
