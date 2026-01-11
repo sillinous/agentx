@@ -1,0 +1,14 @@
+{
+  "name": "@unified/shared-utils",
+  "version": "1.0.0",
+  "description": "Shared utility functions for Unified Media Asset Manager",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": ["utils", "helpers"],
+  "author": "",
+  "license": "ISC"
+}
