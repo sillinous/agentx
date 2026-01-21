@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Button, Select, TextArea, Spinner, StatusBadge } from '../ui';
+import { Card, Button, Select, TextArea, Spinner, StatusBadge, useToast } from '../ui';
 import { useExecuteAgent } from '../../api/hooks';
 import type { ExecutionResponse } from '../../types';
 
@@ -18,6 +18,7 @@ export default function AgentExecutor({
   const [inputJson, setInputJson] = useState('{}');
   const [jsonError, setJsonError] = useState('');
   const [result, setResult] = useState<ExecutionResponse | null>(null);
+  const toast = useToast();
 
   const { mutate: executeAgent, isPending } = useExecuteAgent();
 
@@ -43,16 +44,31 @@ export default function AgentExecutor({
         onSuccess: (response) => {
           setResult(response);
           onExecutionComplete?.(response);
+          if (response.status === 'success') {
+            toast.showToast(
+              'success',
+              'Agent executed successfully',
+              `Completed in ${response.execution_time_ms.toFixed(0)}ms`
+            );
+          } else {
+            toast.showToast(
+              'error',
+              'Agent execution failed',
+              response.error || 'Unknown error'
+            );
+          }
         },
         onError: (error) => {
+          const errorMessage = error instanceof Error ? error.message : 'Execution failed';
           setResult({
             agent_id: agentId,
             status: 'error',
             output: null,
-            error: error instanceof Error ? error.message : 'Execution failed',
+            error: errorMessage,
             execution_time_ms: 0,
             timestamp: new Date().toISOString(),
           });
+          toast.showToast('error', 'Execution failed', errorMessage);
         },
       }
     );

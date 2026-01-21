@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { updateUserSubscription, addCredits, resetMonthlyUsage, cancelUserSubscription } from '@/lib/subscription';
+import { sendPaymentFailedEmail } from '@/lib/email';
 import Stripe from 'stripe';
 
-export const runtime = 'nodejs'; // Webhooks need nodejs runtime for raw body access
+// Webhooks need nodejs runtime for raw body access
+export const runtime = 'nodejs';
 
-// Disable body parsing for webhook signature verification
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+// Set max duration for webhook processing (Vercel serverless function timeout)
+export const maxDuration = 30;
 
 async function getRawBody(request: NextRequest): Promise<string> {
   const reader = request.body?.getReader();
@@ -167,11 +165,39 @@ export async function POST(request: NextRequest) {
         if (subscriptionId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
           const userId = subscription.metadata?.userId;
+          const customer = typeof subscription.customer === 'string'
+            ? subscription.customer
+            : subscription.customer.id;
 
           console.error(`Payment failed for user ${userId}, subscription ${subscriptionId}`);
 
-          // TODO: Send email notification to user about failed payment
-          // You can integrate with Resend here
+          // Send email notification to user about failed payment
+          try {
+            const customerData = await stripe.customers.retrieve(customer);
+            if ('email' in customerData && customerData.email) {
+              const amount = invoice.amount_due
+                ? `$${(invoice.amount_due / 100).toFixed(2)}`
+                : 'your subscription';
+              const nextRetryDate = invoice.next_payment_attempt
+                ? new Date(invoice.next_payment_attempt * 1000).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })
+                : undefined;
+
+              await sendPaymentFailedEmail(
+                customerData.email,
+                customerData.name || 'Valued Customer',
+                amount,
+                nextRetryDate
+              );
+              console.log(`Payment failed email sent to ${customerData.email}`);
+            }
+          } catch (emailError) {
+            console.error('Failed to send payment failed email:', emailError);
+          }
         }
         break;
       }

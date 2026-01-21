@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Zap, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
-import { createSupabaseBrowserClient } from '@/lib/supabase';
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');

@@ -1,6 +1,8 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Create Resend client - may be null during build if env var not set
+const resendApiKey = process.env.RESEND_API_KEY;
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 export interface EmailOptions {
   to: string;
@@ -9,7 +11,7 @@ export interface EmailOptions {
 }
 
 export async function sendEmail({ to, subject, html }: EmailOptions) {
-  if (!process.env.RESEND_API_KEY) {
+  if (!resend) {
     console.warn('RESEND_API_KEY not set, skipping email');
     return { success: false, error: 'Email not configured' };
   }
@@ -168,5 +170,58 @@ export async function sendAnalysisEmail(email: string, listingTitle: string, sco
 
 export async function sendAlertEmail(email: string, listings: Array<{ title: string; score: number; url: string }>) {
   const template = emailTemplates.alertMatch(listings);
+  return sendEmail({ to: email, ...template });
+}
+
+// Payment failure email template
+export const paymentFailedTemplate = (userName: string, amount: string, nextRetryDate?: string) => ({
+  subject: 'FlipFlow: Payment Failed - Action Required',
+  html: `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+          .alert-box { background: #fef2f2; border: 1px solid #fecaca; padding: 16px; border-radius: 6px; margin: 20px 0; }
+          .button { display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+          .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Payment Failed</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${userName},</p>
+            <div class="alert-box">
+              <strong>Your payment of ${amount} was unsuccessful.</strong>
+              ${nextRetryDate ? `<p>We'll automatically retry on ${nextRetryDate}.</p>` : ''}
+            </div>
+            <p>This could be due to:</p>
+            <ul>
+              <li>Insufficient funds</li>
+              <li>Expired card</li>
+              <li>Card declined by your bank</li>
+            </ul>
+            <p>To avoid service interruption, please update your payment method:</p>
+            <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings" class="button">Update Payment Method</a>
+            <p>If you need help, reply to this email and we'll assist you.</p>
+            <p>The FlipFlow Team</p>
+          </div>
+          <div class="footer">
+            <p>You're receiving this because your FlipFlow subscription payment failed.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `,
+});
+
+export async function sendPaymentFailedEmail(email: string, userName: string, amount: string, nextRetryDate?: string) {
+  const template = paymentFailedTemplate(userName, amount, nextRetryDate);
   return sendEmail({ to: email, ...template });
 }

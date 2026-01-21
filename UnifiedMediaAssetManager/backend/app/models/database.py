@@ -155,9 +155,16 @@ class VideoJobDB(Base):
     duration = Column(Integer, nullable=False, default=5)
 
     # External API details
-    provider = Column(String(50), nullable=True)  # 'kling', 'runway', 'pika', 'mock'
+    provider = Column(String(50), nullable=True)  # 'kling', 'runway', 'pika', 'ltx', 'mock'
     provider_job_id = Column(String(255), nullable=True)
     provider_status = Column(String(50), nullable=True)
+
+    # LTX-2 specific parameters
+    ltx_model = Column(String(50), nullable=True)  # 'ltx-2-fast' or 'ltx-2-pro'
+    ltx_resolution = Column(String(20), nullable=True)  # e.g., '1920x1080', '3840x2160'
+    ltx_fps = Column(Integer, nullable=True)  # 25 or 50
+    audio_sync_enabled = Column(Boolean, nullable=True, default=False)
+    ltx_request_id = Column(String(255), nullable=True)
 
     # Generated content
     video_url = Column(Text, nullable=True)
@@ -169,6 +176,7 @@ class VideoJobDB(Base):
     status = Column(String(20), nullable=False, default='pending', index=True)
     error_message = Column(Text, nullable=True)
     extra_metadata = Column(JSON, nullable=True)
+    encoding_variants = Column(JSON, nullable=True)  # Multi-platform transcoded versions
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
@@ -347,3 +355,121 @@ class TimelineEventDB(Base):
 
     def __repr__(self):
         return f"<TimelineEvent(id='{self.id}', title='{self.title}', timestamp='{self.event_timestamp}')>"
+
+
+class ImageJobDB(Base):
+    """Tracks image generation jobs for text-to-image."""
+    __tablename__ = "image_jobs"
+
+    id = Column(GUID(), primary_key=True, default=lambda: str(uuid.uuid4()))
+    universe_id = Column(GUID(), ForeignKey("universes.id", ondelete="CASCADE"), nullable=True, index=True)
+    element_id = Column(GUID(), ForeignKey("elements.id", ondelete="SET NULL"), nullable=True, index=True)
+    agent_job_id = Column(GUID(), ForeignKey("agent_jobs.id", ondelete="SET NULL"), nullable=True)
+
+    # Request parameters
+    generation_type = Column(String(50), nullable=False, default='text_to_image')  # 'text_to_image', 'image_edit'
+    prompt = Column(Text, nullable=False)
+    negative_prompt = Column(Text, nullable=True)
+
+    # Generation parameters
+    width = Column(Integer, nullable=False, default=1024)
+    height = Column(Integer, nullable=False, default=1024)
+    num_inference_steps = Column(Integer, nullable=False, default=50)
+    guidance_scale = Column(Float, nullable=False, default=7.5)
+    seed = Column(BigInteger, nullable=True)
+    style_preset = Column(String(50), nullable=True)  # 'photorealistic', 'anime', 'concept_art', etc.
+
+    # External API details
+    provider = Column(String(50), nullable=True)  # 'omnigen2', 'mock'
+    model = Column(String(100), nullable=True)  # 'Lightricks/OmniGen2'
+    provider_job_id = Column(String(255), nullable=True)
+
+    # Generated content
+    image_url = Column(Text, nullable=True)
+    local_path = Column(Text, nullable=True)
+    file_size = Column(BigInteger, nullable=True)
+
+    # Metadata
+    status = Column(String(20), nullable=False, default='pending', index=True)
+    error_message = Column(Text, nullable=True)
+    extra_metadata = Column(JSON, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+
+    universe = relationship("UniverseDB")
+    element = relationship("ElementDB")
+    agent_job = relationship("AgentJobDB")
+
+    def __repr__(self):
+        return f"<ImageJob(id='{self.id}', type='{self.generation_type}', status='{self.status}')>"
+
+
+class UniverseTemplateDB(Base):
+    """User-created and system universe templates for quick universe creation."""
+    __tablename__ = "universe_templates"
+
+    id = Column(GUID(), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Template metadata
+    name = Column(String(255), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    icon = Column(String(10), nullable=False, default="📝")
+    category = Column(String(100), nullable=False, index=True)
+    tags = Column(JSON, nullable=True)  # Array of tags for filtering
+
+    # Template content (stored as JSON for flexibility)
+    world_config = Column(JSON, nullable=False, default={})
+    elements = Column(JSON, nullable=False, default=[])  # Array of element definitions
+    timeline_events = Column(JSON, nullable=False, default=[])  # Array of event definitions
+
+    # Ownership and visibility
+    is_system = Column(Boolean, nullable=False, default=False, index=True)  # System templates can't be deleted
+    is_public = Column(Boolean, nullable=False, default=True, index=True)
+    created_by = Column(GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # Usage statistics
+    use_count = Column(Integer, nullable=False, default=0)
+    rating = Column(Float, nullable=True)  # Average user rating
+
+    # Metadata
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    creator = relationship("UserDB", foreign_keys=[created_by])
+
+    def __repr__(self):
+        return f"<UniverseTemplate(id='{self.id}', name='{self.name}', category='{self.category}')>"
+
+
+class HITLRequestDB(Base):
+    """Human-In-The-Loop requests for agent information needs."""
+    __tablename__ = "hitl_requests"
+
+    id = Column(GUID(), primary_key=True, default=lambda: str(uuid.uuid4()))
+    agent_job_id = Column(GUID(), ForeignKey("agent_jobs.id", ondelete="CASCADE"), nullable=True, index=True)
+    universe_id = Column(GUID(), ForeignKey("universes.id", ondelete="CASCADE"), nullable=True, index=True)
+    
+    request_type = Column(String(100), nullable=False, index=True)
+    priority = Column(String(20), nullable=False, default='medium', index=True)
+    status = Column(String(20), nullable=False, default='pending', index=True)
+    
+    title = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
+    context = Column(JSON, nullable=True)
+    
+    fields = Column(JSON, nullable=False, default=[])
+    response_data = Column(JSON, nullable=True)
+    
+    requested_by = Column(String(100), nullable=True)
+    responded_by = Column(String, nullable=True)
+    
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    responded_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    
+    agent_job = relationship("AgentJobDB")
+    universe = relationship("UniverseDB")
+    
+    def __repr__(self):
+        return f"<HITLRequest(id='{self.id}', type='{self.request_type}', status='{self.status}')>"

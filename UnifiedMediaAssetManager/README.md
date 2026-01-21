@@ -1,264 +1,241 @@
-# Unified Media Asset Manager
+# Aetheria Studio
 
-A full-stack platform for designing, generating, and managing multi-modal media assets and story elements. Create universes, populate them with elements (characters, locations, props), and attach rich multi-modal components (text, images, video, audio, 3D models, attributes, and relationships).
+**AI-powered creative studio for multi-modal media generation and story universe creation.**
 
-## Features
+Aetheria Studio is a unified platform combining powerful media asset management with AI-powered storytelling capabilities:
+- **Media Generation**: Video (LTX-2), Audio (ElevenLabs), Images, 3D models
+- **Story Universes**: Create and manage narrative worlds with characters, locations, events
+- **Human-in-the-Loop**: AI-assisted workflows with human oversight and refinement
 
-- **Universe Management**: Create and organize story worlds/projects
-- **Element System**: Add characters, locations, props, and other entities to your universes
-- **Multi-Modal Components**: Attach various types of content to elements:
-  - Text components (descriptions, notes, dialogue)
-  - Image components with AI generation support
-  - Video, Audio, and 3D Model components
-  - Attribute components (stats, properties)
-  - Relationship components (connections between elements)
-- **AI Image Generation**: Pluggable AI provider system for generating images from text prompts
-- **Media Storage**: Support for local filesystem or S3-compatible cloud storage
-- **Authentication**: JWT-based authentication with role-based access control
+> **Current Status:** Production-ready infrastructure | Both apps fully functional
+>
+> **📋 REQUIRED READING:** [CODEBASE_ASSESSMENT.md](./CODEBASE_ASSESSMENT.md) - Comprehensive technical documentation
+>
+> **For AI/Agents:** See [.claude/CLAUDE.md](./.claude/CLAUDE.md) for session instructions
+
+## What's Inside
+
+### 🎨 Core Platform Features
+
+Aetheria Studio is a full-stack creative platform for designing, generating, and managing multi-modal media assets and story universes.
+
+**Media Generation:**
+- **Video**: LTX-2 integration for text-to-video and image-to-video generation
+- **Audio**: ElevenLabs TTS with 23+ professional voices and preview playback
+- **Images**: AI image generation with pluggable provider system
+- **3D Models**: Component-based 3D asset management
+
+**Story Universe Management:**
+- **Universe System**: Create and organize story worlds/projects
+- **Element Library**: Characters, locations, props, and custom entities
+- **Timeline System**: Create and visualize story chronology with linked events
+- **Relationships**: Define connections between story elements
+
+**AI-Powered Workflows:**
+- **HITL System**: Human-in-the-loop workflow for AI-generated content review
+- **Story Deconstruction**: Analyze existing narratives into structured elements
+- **Multi-Modal Generation**: Combine text, audio, video, and 3D assets
+
+**Infrastructure:**
+- **Media Storage**: Local filesystem or S3-compatible cloud storage
+- **Authentication**: JWT-based auth with role-based access control
+- **Real-time Updates**: WebSocket support for live collaboration
+
+**Tech Stack:**
+- Backend: FastAPI (Python 3.8+), SQLAlchemy, Celery
+- Frontend: Next.js 15, React 18, TypeScript, Tailwind CSS
+- Database: SQLite (dev) / PostgreSQL (prod)
+- AI Providers: LTX-2, ElevenLabs, OpenAI, Anthropic Claude
 
 ## Project Structure
 
-This project is a monorepo containing two main packages:
-
--   `/frontend`: A [Next.js](https://nextjs.org/) 16 application (React 19) that serves as the user interface
--   `/backend`: A [FastAPI](https://fastapi.tiangolo.com/) application (Python 3.11+) that provides the API and manages data
+```
+aetheria-studio/
+├── backend/                    # FastAPI backend
+│   ├── app/
+│   │   ├── agents/            # AI generation agents (video, audio, story)
+│   │   ├── api/               # API endpoints
+│   │   ├── models/            # Database models
+│   │   └── providers/         # AI provider integrations (LTX, ElevenLabs)
+│   ├── media/                 # Local media storage
+│   └── alembic/               # Database migrations
+├── frontend/                   # Next.js frontend
+│   ├── src/
+│   │   ├── app/               # Next.js 15 App Router pages
+│   │   ├── components/        # React components
+│   │   └── services/          # API client services
+│   └── public/                # Static assets
+└── docker-compose.yml          # Docker setup
+```
 
 ## Getting Started
 
 ### Prerequisites
 
-- **Python 3.11+** (for backend)
-- **Node.js 20+** (for frontend)
+- **Python 3.11+** (for Media Manager backend)
+- **Node.js 20+** (for all frontends and StoryForge backend)
 - **Docker & Docker Compose** (optional, for containerized deployment)
+- **Firebase Account** (for StoryForge - free tier available)
+- **Google Gemini API Key** (for StoryForge AI features)
 
 ### Option 1: Docker Compose (Recommended for Quick Start)
 
-The fastest way to get started:
+The fastest way to get both apps running:
 
 ```bash
-# Start all services
+# Start all services (both apps + shared services)
 docker-compose up
 
-# Access the application
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:8000
-# API Docs: http://localhost:8000/docs
+# Access the applications:
+# Media Manager Frontend: http://localhost:3000
+# Media Manager Backend API: http://localhost:8000
+# Media Manager API Docs: http://localhost:8000/docs
+# StoryForge Frontend: http://localhost:5173
+# StoryForge Backend: http://localhost:3001
+# Flower (Celery monitoring): http://localhost:5555
 ```
 
-### Option 2: Manual Setup
+### Option 2: Run Individual Apps
 
-#### Backend Setup
+#### Media Manager Only
 
-1.  Navigate to the `backend` directory: `cd backend`
+```bash
+# Backend
+cd apps/media-manager/backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1  # Windows
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload
 
-2.  Create and activate a virtual environment:
+# Frontend (separate terminal)
+cd apps/media-manager/frontend
+npm install
+npm run dev
+```
 
-		- macOS / Linux:
-			```bash
-			python3 -m venv venv
-			source venv/bin/activate
-			```
+#### StoryForge Only
 
-		- Windows (PowerShell):
-			```powershell
-			python -m venv venv
-			.\venv\Scripts\Activate.ps1
-			```
+```bash
+# Backend
+cd apps/story-forge/backend
+npm install
+cp .env.example .env
+# Edit .env with your GEMINI_API_KEY and FIREBASE_PROJECT_ID
+npm start
 
-3.  Install dependencies:
-		```bash
-		pip install -r requirements.txt
-		```
-
-4.  Set up environment variables:
-		```bash
-		cp .env.example .env
-		# Edit .env with your configuration
-		```
-
-5.  Run database migrations:
-		```bash
-		alembic upgrade head
-		```
-
-6.  Start the development server:
-		```bash
-		uvicorn main:app --reload --host 0.0.0.0 --port 8000
-		```
-
-The API will be available at `http://127.0.0.1:8000`. API documentation at `http://127.0.0.1:8000/docs`.
-
-#### Frontend Setup
-
-1.  Navigate to the `frontend` directory: `cd frontend`
-
-2.  Install dependencies:
-		```bash
-		npm install
-		```
-
-3.  Set up environment variables:
-		```bash
-		cp .env.example .env.local
-		# Edit .env.local if needed (defaults to http://127.0.0.1:8000)
-		```
-
-4.  Start the development server:
-		```bash
-		npm run dev
-		```
-
-The application will be available at `http://localhost:3000`.
+# Frontend (separate terminal)
+cd apps/story-forge/frontend
+npm install
+cp .env.example .env
+# Edit .env with your Firebase config
+npm run dev
+```
 
 ## Configuration
 
-### Backend Environment Variables
+See individual app READMEs for detailed configuration:
+- [Media Manager Configuration](./apps/media-manager/README.md)
+- [StoryForge Configuration](./apps/story-forge/README.md)
 
-Key configuration options in `.env` (see `.env.example` for all options):
+### Quick Environment Setup
 
+Copy the example file and configure:
 ```bash
-# Database (SQLite for dev, PostgreSQL for production)
-DATABASE_URL=sqlite:///./sql_app.db
-
-# JWT Authentication - MUST change in production!
-JWT_SECRET=your-secure-random-secret-here
-JWT_ALGO=HS256
-
-# CORS (comma-separated allowed origins)
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-
-# Media Storage
-MEDIA_STORAGE=local  # or 's3'
-
-# AI Provider
-AI_PROVIDER=placeholder  # or 'http' for custom endpoint
+cp .env.example .env
+# Edit .env with your API keys and configuration
 ```
 
-**Security Note**: Always generate a secure JWT_SECRET for production:
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"
-```
-
-### Frontend Environment Variables
-
-In `.env.local`:
+## Available Scripts
 
 ```bash
-NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
-# NEXT_PUBLIC_AUTH_TOKEN=your-jwt-token (optional)
+# Install all dependencies (all workspaces)
+npm install
+
+# Run specific app
+npm run dev:media-manager:frontend
+npm run dev:media-manager:backend
+npm run dev:story-forge:frontend
+npm run dev:story-forge:backend
+
+# Build all apps
+npm run build
+
+# Run tests across all workspaces
+npm run test
 ```
-
-## Usage
-
-### Getting an Authentication Token
-
-1. Start the backend server
-2. Get a development token:
-   ```bash
-   curl -X POST http://localhost:8000/auth/dev-token
-   ```
-3. Use the returned token in requests or store in browser localStorage
-
-### Basic Workflow
-
-1. **Create a Universe**: Go to home page and create a new universe (e.g., "My Sci-Fi World")
-2. **Add Elements**: Click on your universe and add elements (characters, locations, etc.)
-3. **Add Components**: Click on an element to add various components:
-   - Add text descriptions
-   - Generate AI images from prompts
-   - Attach media files
-   - Define attributes and relationships
-
-## Database Migrations
-
-We include an Alembic scaffold in `backend/alembic/`. To create and run migrations:
-
-```bash
-cd backend
-# Generate a new migration
-alembic revision --autogenerate -m "Description of changes"
-# Apply migrations
-alembic upgrade head
-```
-
-Alembic uses `DATABASE_URL` environment variable (defaults to `sqlite:///./sql_app.db`).
-
-## Troubleshooting
-
-### Backend won't start
-- Check if port 8000 is already in use
-- Verify Python version: `python --version` (should be 3.11+)
-- Run migrations: `alembic upgrade head`
-- Check environment variables in `.env`
-
-### Frontend won't start
-- Check if port 3000 is already in use
-- Verify Node version: `node --version` (should be 20+)
-- Clear cache: `rm -rf .next node_modules && npm install`
-- Check `NEXT_PUBLIC_API_URL` points to backend
-
-### Images not displaying
-- Verify MEDIA_STORAGE configuration
-- Check media directory exists: `backend/media/`
-- Check CORS settings if accessing from different origin
-
-### Authentication errors
-- Verify JWT_SECRET is consistent
-- Check if token expired (24 hour default)
-- Get new dev token: `curl -X POST http://localhost:8000/auth/dev-token`
-
-## Production Deployment
-
-### Security Checklist
-
-- ✅ **Change default JWT_SECRET** to a secure random value
-- ✅ **Use PostgreSQL** instead of SQLite
-- ✅ **Configure CORS_ORIGINS** to only allow your production domain
-- ✅ **Use HTTPS** in production
-- ✅ **Store secrets securely** (use secrets management service)
-- ✅ **Disable DISABLE_AUTH** in production
-- ✅ **Run migrations** before deployment: `alembic upgrade head`
-
-### Infrastructure
-
-- **Secrets / env:** Set `JWT_SECRET`, `DATABASE_URL`, `MEDIA_STORAGE`, `S3_BUCKET`, `S3_REGION`, `CORS_ORIGINS`
-- **Auth:** Ensure `DISABLE_AUTH` is not set
-- **Storage:** Provision S3 or compatible object storage
-- **Database:** Provision managed PostgreSQL and run migrations
-- **CI/CD:** Configure secrets securely, run tests and security scans
-- **TLS & networking:** Serve backend behind TLS, configure CORS properly
-- **Monitoring:** Add logging, metrics, and alerting
-
-See `docs/runbook.md` for detailed production operations.
 
 ## Development
 
-### Running Tests
+### Shared Packages
 
-Backend tests:
-```bash
-cd backend
-pytest
+The monorepo includes shared packages for code reuse:
+
+- `@unified/shared`: Common types and interfaces
+- `@unified/shared-ui`: Reusable React components
+- `@unified/shared-utils`: Utility functions
+
+To use in your app:
+```typescript
+import { User, MediaAsset } from '@unified/shared';
+import { formatDate } from '@unified/shared-utils';
 ```
 
-Frontend E2E tests:
-```bash
-cd frontend
-npm run test:e2e
+## Architecture
+
+Both apps share infrastructure while maintaining independence:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Unified Ecosystem                         │
+├─────────────────────────┬───────────────────────────────────┤
+│   Media Manager         │         StoryForge                │
+├─────────────────────────┼───────────────────────────────────┤
+│ Next.js → FastAPI       │   React/Vite → Node.js/Express    │
+│      ↓         ↓        │        ↓              ↓           │
+│   SQLite   Celery       │   Firestore    Gemini AI          │
+│              ↓          │                                    │
+│           Redis ←───────┴─────(shared services)─────────────┤
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Code Quality
+## Deployment
 
-Backend linting:
+### Docker Deployment
+
 ```bash
-cd backend
-black app/
-flake8 app/
+# Production build and deploy
+docker-compose -f docker-compose.yml up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop all services
+docker-compose down
 ```
 
-Frontend linting:
-```bash
-cd frontend
-npm run lint
-```
+### Individual App Deployment
+
+See deployment guides:
+- [Media Manager Deployment](./apps/media-manager/docs/runbook.md)
+- [StoryForge Deployment](./apps/story-forge/DEPLOYMENT_AND_TESTING.md)
+
+## Documentation
+
+- [Media Manager Docs](./apps/media-manager/)
+  - [Codebase Assessment](./CODEBASE_ASSESSMENT.md)
+  - [HITL System Guide](./HITL_SYSTEM_GUIDE.md)
+  - [Project Status](./PROJECT_STATUS.md)
+- [StoryForge Docs](./apps/story-forge/)
+  - [README](./apps/story-forge/README.md)
+  - [Architecture](./apps/story-forge/HITL_ARCHITECTURE.md)
+  - [Quick Start](./apps/story-forge/QUICK_START.md)
+
+## License
+
+ISC
+
+---
+
+**Questions?** Check the individual app READMEs or open an issue.
 

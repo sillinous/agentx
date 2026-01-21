@@ -3,15 +3,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { Layout, LoadingScreen } from './components/ui';
+import { ThemeProvider } from './context/ThemeContext';
+import { Layout, LoadingScreen, ToastProvider, CommandPalette, useCommandPalette } from './components/ui';
 import {
   Dashboard,
   Agents,
   AgentDetail,
   Workflows,
   WorkflowDetail,
+  WorkflowBuilder,
   Evaluations,
+  Health,
   Handbook,
+  Portfolio,
+  HumanActions,
+  Integrations,
   Login,
   Settings,
   NotFound,
@@ -81,12 +87,20 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+// Command Palette wrapper (needs to be inside BrowserRouter for navigation)
+function CommandPaletteWrapper() {
+  const { isOpen, close } = useCommandPalette();
+  return <CommandPalette isOpen={isOpen} onClose={close} />;
+}
+
 // App routes component (needs to be inside AuthProvider)
 function AppRoutes() {
   const { isAuthenticated } = useAuth();
 
   return (
-    <Routes>
+    <>
+      <CommandPaletteWrapper />
+      <Routes>
       {/* Public routes */}
       <Route
         path="/login"
@@ -155,11 +169,41 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/health"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Health />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/handbook"
         element={
           <ProtectedRoute>
             <Layout>
               <Handbook />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/portfolio"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Portfolio />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/human-actions"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <HumanActions />
             </Layout>
           </ProtectedRoute>
         }
@@ -174,11 +218,32 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/integrations"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Integrations />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/workflows/builder"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <WorkflowBuilder />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
 
       {/* Error routes */}
       <Route path="/error" element={<ServerError />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </>
   );
 }
 
@@ -186,11 +251,15 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </AuthProvider>
+        <ThemeProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+            </AuthProvider>
+          </ToastProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

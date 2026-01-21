@@ -1,8 +1,8 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "schema_version": "1.0.0",
-  "last_updated": "2026-01-06T12:50:00Z",
-  "total_agents": 13,
+  "last_updated": "2026-01-12T12:00:00Z",
+  "total_agents": 18,
   "agents": [
     {
       "id": "supervisor-agent",
@@ -173,6 +173,71 @@
       "protocols": ["a2a/1.0", "acp/1.0", "anp/1.0"],
       "implementations": {"python": "built_in_agents/utility/error-handler/agent.py"},
       "documentation": "docs/agents/error-handler.md"
+    },
+    {
+      "id": "scheduler-agent",
+      "name": "Scheduler Agent",
+      "version": "1.0.0",
+      "type": "coordinator",
+      "domain": "system",
+      "status": "production",
+      "description": "Manages scheduled and recurring tasks with cron-based scheduling",
+      "capabilities": ["task-scheduling", "cron-management", "schedule-lifecycle", "recurring-tasks"],
+      "protocols": ["a2a/1.0", "acp/1.0", "anp/1.0", "mcp/1.0"],
+      "implementations": {"python": "built_in_agents/system/scheduler/agent.py"},
+      "documentation": "docs/agents/scheduler.md"
+    },
+    {
+      "id": "api-gateway-agent",
+      "name": "API Gateway Agent",
+      "version": "1.0.0",
+      "type": "coordinator",
+      "domain": "system",
+      "status": "production",
+      "description": "Routes and manages external API calls and integrations",
+      "capabilities": ["endpoint-registration", "api-routing", "request-forwarding", "response-handling"],
+      "protocols": ["a2a/1.0", "acp/1.0", "anp/1.0", "mcp/1.0"],
+      "implementations": {"python": "built_in_agents/system/api_gateway/agent.py"},
+      "documentation": "docs/agents/api-gateway.md"
+    },
+    {
+      "id": "analytics-agent",
+      "name": "Analytics Agent",
+      "version": "1.0.0",
+      "type": "analyst",
+      "domain": "business",
+      "status": "production",
+      "description": "Data analysis, statistics calculation, and trend analysis",
+      "capabilities": ["statistics-calculation", "data-aggregation", "trend-analysis", "metrics-processing"],
+      "protocols": ["a2a/1.0", "acp/1.0", "anp/1.0", "mcp/1.0"],
+      "implementations": {"python": "built_in_agents/business/analytics/agent.py"},
+      "documentation": "docs/agents/analytics.md"
+    },
+    {
+      "id": "notification-agent",
+      "name": "Notification Agent",
+      "version": "1.0.0",
+      "type": "worker",
+      "domain": "utility",
+      "status": "production",
+      "description": "Multi-channel notification delivery (email, Slack, webhook, SMS)",
+      "capabilities": ["email-notification", "slack-notification", "webhook-notification", "sms-notification", "channel-management"],
+      "protocols": ["a2a/1.0", "acp/1.0", "mcp/1.0"],
+      "implementations": {"python": "built_in_agents/utility/notification/agent.py"},
+      "documentation": "docs/agents/notification.md"
+    },
+    {
+      "id": "validator-agent",
+      "name": "Validator Agent",
+      "version": "1.0.0",
+      "type": "worker",
+      "domain": "utility",
+      "status": "production",
+      "description": "Data validation against schemas, type checking, and constraint validation",
+      "capabilities": ["schema-validation", "type-checking", "constraint-validation", "batch-validation"],
+      "protocols": ["a2a/1.0", "acp/1.0", "mcp/1.0"],
+      "implementations": {"python": "built_in_agents/utility/validator/agent.py"},
+      "documentation": "docs/agents/validator.md"
     }
   ]
 }

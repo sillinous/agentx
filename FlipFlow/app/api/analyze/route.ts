@@ -3,8 +3,9 @@ import { analyzeFlippaListing } from '@/lib/analyzer';
 import { getCurrentUser } from '@/lib/supabase';
 import { saveAnalysis, getOrCreateUser } from '@/lib/db';
 import { canPerformAnalysis, consumeAnalysisCredit } from '@/lib/subscription';
+import { checkRateLimit } from '@/lib/rate-limit';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 export const maxDuration = 60; // 60 seconds for analysis
 
 interface AnalyzeRequest {
@@ -14,6 +15,24 @@ interface AnalyzeRequest {
 }
 
 export async function POST(request: NextRequest) {
+  // Check rate limit first
+  const { allowed, headers: rateLimitHeaders, result } = await checkRateLimit(request, 'analyze');
+
+  if (!allowed) {
+    return NextResponse.json(
+      {
+        error: 'Rate limit exceeded',
+        message: `Too many requests. Please wait ${Math.ceil((result.reset * 1000 - Date.now()) / 1000)} seconds before trying again.`,
+        code: 'RATE_LIMITED',
+        retryAfter: result.reset,
+      },
+      {
+        status: 429,
+        headers: rateLimitHeaders,
+      }
+    );
+  }
+
   try {
     const body: AnalyzeRequest = await request.json();
 
@@ -145,15 +164,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      analysis,
-      timestamp: new Date().toISOString(),
-      credits: remainingCredits !== null ? {
-        remaining: remainingCredits === -1 ? 'unlimited' : remainingCredits,
-        unlimited: remainingCredits === -1,
-      } : undefined,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        analysis,
+        timestamp: new Date().toISOString(),
+        credits: remainingCredits !== null ? {
+          remaining: remainingCredits === -1 ? 'unlimited' : remainingCredits,
+          unlimited: remainingCredits === -1,
+        } : undefined,
+      },
+      { headers: rateLimitHeaders }
+    );
 
   } catch (error) {
     console.error('Analysis error:', error);

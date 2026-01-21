@@ -1,8 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { createSupabaseBrowserClient } from '@/lib/supabase';
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 interface AuthContextType {
   user: User | null;
@@ -22,9 +22,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createSupabaseBrowserClient();
+
+  // Memoize supabase client to avoid recreation on every render
+  const supabase = useMemo(() => {
+    try {
+      return createSupabaseBrowserClient();
+    } catch {
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
+    // Skip auth initialization if supabase is not available (during SSR/build)
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     // Get initial session
     const initializeAuth = async () => {
       try {
@@ -42,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (_event: any, session: any) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -52,10 +66,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase.auth]);
+  }, [supabase]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     setUser(null);
     setSession(null);
   };

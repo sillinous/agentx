@@ -8,24 +8,30 @@ import {
   Zap,
   BarChart3,
   TrendingUp,
-  AlertCircle,
   ArrowRight,
   Clock,
   DollarSign,
   Activity,
+  History,
+  ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
+import { TopDeals } from '@/components/TopDeals';
+import { useDashboardData } from '@/hooks/useDashboardData';
+import { SkeletonDashboard } from '@/components/ui/skeleton';
 
 export default function DashboardPage() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { stats, loading: dataLoading, refresh } = useDashboardData();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push('/login');
     }
-  }, [user, loading, router]);
+  }, [user, authLoading, router]);
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 flex items-center justify-center">
         <div className="text-center">
@@ -41,6 +47,38 @@ export default function DashboardPage() {
   if (!user) {
     return null;
   }
+
+  // Show skeleton while loading data
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              Welcome back, {user.email?.split('@')[0]}!
+            </h1>
+            <p className="text-xl text-gray-600">
+              Your AI-powered deal analysis command center
+            </p>
+          </div>
+          <SkeletonDashboard />
+        </div>
+      </div>
+    );
+  }
+
+  const formatPrice = (price: number) => {
+    if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
+    if (price >= 1000) return `$${(price / 1000).toFixed(0)}K`;
+    return `$${price.toFixed(0)}`;
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-600 bg-green-100';
+    if (score >= 60) return 'text-blue-600 bg-blue-100';
+    if (score >= 40) return 'text-yellow-600 bg-yellow-100';
+    return 'text-red-600 bg-red-100';
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
@@ -62,10 +100,12 @@ export default function DashboardPage() {
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <BarChart3 className="w-6 h-6 text-blue-600" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">3</span>
+              <span className="text-2xl font-bold text-gray-900">
+                {stats?.analysesRemaining === 'unlimited' ? '∞' : stats?.analysesRemaining ?? 3}
+              </span>
             </div>
             <div className="text-sm text-gray-600">Analyses Remaining</div>
-            <div className="text-xs text-gray-500 mt-1">Free Plan</div>
+            <div className="text-xs text-gray-500 mt-1">{stats?.planName ?? 'Free Plan'}</div>
           </div>
 
           <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-100">
@@ -73,7 +113,7 @@ export default function DashboardPage() {
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                 <Activity className="w-6 h-6 text-purple-600" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">0</span>
+              <span className="text-2xl font-bold text-gray-900">{stats?.totalAnalyses ?? 0}</span>
             </div>
             <div className="text-sm text-gray-600">Total Analyses</div>
             <div className="text-xs text-gray-500 mt-1">All time</div>
@@ -84,7 +124,9 @@ export default function DashboardPage() {
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-green-600" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">$0</span>
+              <span className="text-2xl font-bold text-gray-900">
+                {formatPrice(stats?.averageDealValue ?? 0)}
+              </span>
             </div>
             <div className="text-sm text-gray-600">Avg Deal Value</div>
             <div className="text-xs text-gray-500 mt-1">Analyzed</div>
@@ -95,7 +137,7 @@ export default function DashboardPage() {
               <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
                 <Clock className="w-6 h-6 text-yellow-600" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">0</span>
+              <span className="text-2xl font-bold text-gray-900">{stats?.savedDeals ?? 0}</span>
             </div>
             <div className="text-sm text-gray-600">Saved Deals</div>
             <div className="text-xs text-gray-500 mt-1">Watchlist</div>
@@ -137,21 +179,67 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Recent Activity */}
-            <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Recent Activity</h2>
-              <div className="text-center py-12">
-                <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-600 mb-4">No analyses yet</p>
-                <Link
-                  href="/analyze"
-                  className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
-                >
-                  <span>Analyze Your First Deal</span>
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </Link>
+            {/* Top Deals Widget */}
+            <TopDeals />
+
+            {/* Recent Analyses */}
+            {stats?.recentAnalyses && stats.recentAnalyses.length > 0 && (
+              <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">Recent Analyses</h2>
+                  <button
+                    onClick={refresh}
+                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Refresh"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {stats.recentAnalyses.map((analysis) => (
+                    <Link
+                      key={analysis.id}
+                      href={`/analysis/${analysis.id}`}
+                      className="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-900 truncate">
+                            {analysis.listing?.title || 'Flippa Listing'}
+                          </h3>
+                          <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
+                            <span>{new Date(analysis.created_at).toLocaleDateString()}</span>
+                            {analysis.listing?.asking_price && (
+                              <>
+                                <span>•</span>
+                                <span>{formatPrice(analysis.listing.asking_price)}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreColor(analysis.score)}`}
+                          >
+                            {analysis.score}/100
+                          </span>
+                          <ExternalLink className="w-4 h-4 text-gray-400" />
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+                {stats.totalAnalyses > 5 && (
+                  <Link
+                    href="/history"
+                    className="flex items-center justify-center gap-2 mt-4 p-3 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <History className="w-4 h-4" />
+                    <span>View All {stats.totalAnalyses} Analyses</span>
+                  </Link>
+                )}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Sidebar */}

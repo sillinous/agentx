@@ -1,31 +1,27 @@
+/**
+ * Server-side Supabase utilities
+ * This file should only be imported in server components and API routes
+ */
+
 import { createClient } from '@supabase/supabase-js';
-import { createBrowserClient, createServerClient } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { Database } from './types';
 
-// Validate required environment variables
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Get environment variables
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Missing Supabase environment variables. Please check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local'
-  );
-}
-
-// Legacy client-side Supabase client (uses anon key, RLS enforced)
-// Kept for backward compatibility
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
-
-// Browser client for client components (with SSR support)
-export function createSupabaseBrowserClient() {
-  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
-}
+// Legacy client for API routes (uses anon key, RLS enforced)
+// Returns null during build if env vars not available
+export const supabase = supabaseUrl && supabaseAnonKey
+  ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    })
+  : (null as any);
 
 // Server client for server components and route handlers
 export async function createSupabaseServerClient() {

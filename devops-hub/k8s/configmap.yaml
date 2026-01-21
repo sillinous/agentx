@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devops-hub-config
+  namespace: devops-hub
+  labels:
+    app.kubernetes.io/name: devops-hub
+    app.kubernetes.io/component: config
+data:
+  # Application settings
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  AUTH_ENABLED: "true"
+  ALLOW_ANONYMOUS_READ: "true"
+
+  # Rate limiting
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_REQUESTS: "100"
+  RATE_LIMIT_EXECUTE_REQUESTS: "20"
+
+  # Server settings
+  PORT: "8100"
+  GUNICORN_WORKERS: "4"
+  GUNICORN_THREADS: "2"
+
+  # Frontend API URL (used during build)
+  VITE_API_URL: "/api"

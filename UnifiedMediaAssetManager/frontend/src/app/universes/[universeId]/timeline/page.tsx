@@ -15,11 +15,16 @@ import {
   getEventParticipants,
 } from '@/services/api';
 import { useIsClient } from '@/hooks/useIsClient';
+import { useToast } from '@/context/ToastContext';
+import { ConfirmModal } from '@/components/Modal';
+import { Skeleton, SkeletonText } from '@/components/Skeleton';
+import { EmptyTimeline } from '@/components/EmptyState';
 
 export default function TimelineViewerPage() {
   const params = useParams();
   const router = useRouter();
   const { universeId } = params;
+  const toast = useToast();
 
   const [universe, setUniverse] = useState<Universe | null>(null);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
@@ -28,6 +33,11 @@ export default function TimelineViewerPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const isClient = useIsClient();
+
+  // Delete confirmation modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form state for new event
   const [showAddForm, setShowAddForm] = useState(false);
@@ -130,7 +140,7 @@ export default function TimelineViewerPage() {
   const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEventTitle.trim() || !newEventTimestamp || typeof universeId !== 'string') {
-      alert('Title and timestamp are required.');
+      toast.warning('Please provide both a title and timestamp for the event.');
       return;
     }
 
@@ -153,7 +163,7 @@ export default function TimelineViewerPage() {
       setEvents([...events, newEvent].sort(
         (a, b) => new Date(a.event_timestamp).getTime() - new Date(b.event_timestamp).getTime()
       ));
-      setSuccessMessage('Timeline event created successfully!');
+      toast.success(`Event "${newEventTitle}" added to timeline`);
 
       // Reset form
       setNewEventTitle('');
@@ -166,7 +176,7 @@ export default function TimelineViewerPage() {
       setNewEventParticipants([]);
       setShowAddForm(false);
     } catch (err: any) {
-      setError(err.message || 'Failed to create event. Please try again.');
+      toast.error(err.message || 'Failed to create event. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -196,31 +206,34 @@ export default function TimelineViewerPage() {
           (a, b) => new Date(a.event_timestamp).getTime() - new Date(b.event_timestamp).getTime()
         )
       );
-      setSuccessMessage('Event updated successfully!');
+      toast.success('Event updated successfully');
       setEditingEvent(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to update event.');
+      toast.error(err.message || 'Failed to update event.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDeleteEvent = async (eventId: string) => {
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this timeline event? This action cannot be undone.'
-    );
+  const openDeleteModal = (eventId: string) => {
+    setEventToDelete(eventId);
+    setDeleteModalOpen(true);
+  };
 
-    if (!confirmed) return;
+  const handleDeleteEvent = async () => {
+    if (!eventToDelete) return;
 
     try {
-      setIsSaving(true);
-      await deleteTimelineEvent(eventId);
-      setEvents(events.filter(e => e.id !== eventId));
-      setSuccessMessage('Event deleted successfully!');
+      setIsDeleting(true);
+      await deleteTimelineEvent(eventToDelete);
+      setEvents(events.filter(e => e.id !== eventToDelete));
+      toast.success('Event deleted successfully');
+      setDeleteModalOpen(false);
+      setEventToDelete(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to delete event.');
+      toast.error(err.message || 'Failed to delete event.');
     } finally {
-      setIsSaving(false);
+      setIsDeleting(false);
     }
   };
 
@@ -682,7 +695,7 @@ export default function TimelineViewerPage() {
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDeleteEvent(event.id)}
+                            onClick={() => openDeleteModal(event.id)}
                             className="text-sm text-red-600 hover:text-red-800 font-medium"
                           >
                             Delete
@@ -740,14 +753,25 @@ export default function TimelineViewerPage() {
             ))}
           </div>
         ) : (
-          <div className="bg-white shadow rounded-lg p-12 text-center">
-            <p className="text-gray-500 text-lg">No timeline events yet.</p>
-            <p className="text-gray-400 text-sm mt-2">
-              Create your first event to start building your story's chronology!
-            </p>
-          </div>
+          <EmptyTimeline />
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setEventToDelete(null);
+        }}
+        onConfirm={handleDeleteEvent}
+        title="Delete Timeline Event"
+        message="Are you sure you want to delete this timeline event? This action cannot be undone."
+        confirmText="Delete Event"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

@@ -1,17 +1,26 @@
 import Stripe from 'stripe';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
-}
+// Create Stripe client - may be null during build if env var not set
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-12-18.acacia',
-  typescript: true,
-  appInfo: {
-    name: 'FlipFlow',
-    version: '1.0.0',
-  },
-});
+export const stripe = stripeSecretKey
+  ? new Stripe(stripeSecretKey, {
+      apiVersion: '2023-10-16',
+      typescript: true,
+      appInfo: {
+        name: 'FlipFlow',
+        version: '1.0.0',
+      },
+    })
+  : (null as unknown as Stripe);
+
+// Helper to ensure Stripe is available at runtime
+export function getStripe(): Stripe {
+  if (!stripe) {
+    throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
+  }
+  return stripe;
+}
 
 // Pricing tier configuration matching PROJECT_PLAN.md
 export const PRICING_TIERS = {
@@ -107,7 +116,7 @@ export function isSubscriptionTier(tierId: string): boolean {
 
 export function isUnlimitedTier(tierId: string): boolean {
   const tier = getPricingTier(tierId);
-  return tier ? tier.credits === -1 : false;
+  return tier && 'credits' in tier ? tier.credits === -1 : false;
 }
 
 // Create Stripe checkout session

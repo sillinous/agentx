@@ -2,6 +2,24 @@
 
 **Unified Agent Operations Platform** - Central hub for agent registration, discovery, validation, and orchestration.
 
+---
+
+## 🚀 For AI Agents & New Developers - START HERE
+
+**📖 READ FIRST:** [`CODEBASE_ASSESSMENT.md`](./CODEBASE_ASSESSMENT.md)
+
+This comprehensive assessment document contains:
+- Complete architecture overview (backend + frontend)
+- Technology stack and component deep dive
+- Current capabilities (13 agents, 30+ API endpoints, 5 workflows)
+- Production readiness status (95% ready)
+- Development workflow and best practices
+- Recommended next steps
+
+**All AI assistants, developers, and contributors should read this file at the start of each session.**
+
+---
+
 ## Overview
 
 DevOps Hub consolidates the agent management ecosystem into a single solution:
@@ -10,9 +28,24 @@ DevOps Hub consolidates the agent management ecosystem into a single solution:
 - **Agent Registry** - Discovery, indexing, metadata management
 - **REST API Service** - HTTP endpoints for agent operations
 - **Workflow Engine** - Multi-agent workflow orchestration
+- **Human-in-the-Loop (HITL)** - UI for agents to request human assistance
 - **Python SDK** - Sync and async clients for integration
 - **SQLite Persistence** - Durable storage for registry and events
 - **API Key Authentication** - Secure access with scoped permissions
+
+### 🤝 Human-in-the-Loop System
+
+The HITL system enables AI agents to request human assistance for tasks they cannot perform autonomously:
+- API keys and credentials
+- Account registrations
+- Legal document reviews
+- Payment authorizations
+- Business setup (LLC, tax registration)
+- Strategic decisions
+
+**📖 Full documentation:** [`HITL_IMPLEMENTATION_SUMMARY.md`](./HITL_IMPLEMENTATION_SUMMARY.md)
+
+**Access the UI:** http://localhost:3000/human-actions (after starting the frontend)
 
 ## Quick Start
 

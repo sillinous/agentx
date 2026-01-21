@@ -12,6 +12,12 @@ from sqlalchemy.pool import StaticPool
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["JWT_SECRET"] = "test-secret-key-for-testing-only"
 os.environ["DISABLE_AUTH"] = "false"
+os.environ["VIDEO_PROVIDER"] = "mock"
+os.environ["AUDIO_TTS_PROVIDER"] = "mock"
+os.environ["AUDIO_TRANSCRIBE_PROVIDER"] = "mock"
+os.environ["AI_PROVIDER"] = "placeholder"
+os.environ["RATE_LIMIT_ENABLED"] = "false"  # Disable rate limiting in tests
+os.environ["REQUEST_LOGGING_ENABLED"] = "false"  # Reduce test noise
 
 from app.main import app
 from app.database import get_db

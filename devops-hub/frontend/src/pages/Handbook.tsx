@@ -365,12 +365,19 @@ export default function Handbook() {
     }
   };
 
+  // Sync state from URL when navigating with browser back/forward
+  // Only update if the URL value differs from current state
   useEffect(() => {
     const page = searchParams.get('page');
     const type = searchParams.get('type');
-    if (page) setCurrentSlug(page);
-    if (type) setViewType(type as 'guide' | 'agents' | 'examples');
-  }, [searchParams]);
+    if (page && page !== currentSlug) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCurrentSlug(page);
+    }
+    if (type && type !== viewType) {
+      setViewType(type as 'guide' | 'agents' | 'examples');
+    }
+  }, [searchParams, currentSlug, viewType]);
 
   if (handbookLoading) {
     return <LoadingScreen message="Loading handbook..." />;

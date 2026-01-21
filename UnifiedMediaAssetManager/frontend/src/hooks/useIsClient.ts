@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
+
+// Simple external store that always returns true on client, false on server
+const subscribe = () => () => {};
+const getSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 /**
  * A custom hook that returns `true` once the component has mounted on the client.
@@ -8,11 +13,5 @@ import { useState, useEffect } from 'react';
  * components that depend on client-side APIs or state are only rendered on the client.
  */
 export function useIsClient() {
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  return isClient;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

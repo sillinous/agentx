@@ -117,3 +117,25 @@ export interface APIError {
   detail?: string;
   status_code?: number;
 }
+
+// Dashboard types
+export interface DashboardKPI {
+  title: string;
+  value: string;
+  trend: string;
+  color: string;
+}
+
+export interface DashboardActivity {
+  agent: string;
+  action: string;
+  time: string;
+  type: 'alert' | 'success' | 'info';
+}
+
+export interface DashboardMetrics {
+  kpis: DashboardKPI[];
+  activity_feed: DashboardActivity[];
+  revenue_data: number[];
+  timestamp: string;
+}

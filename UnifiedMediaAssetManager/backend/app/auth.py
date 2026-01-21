@@ -55,6 +55,28 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> Dict:
     return decode_token(token)
 
 
+def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Optional[Dict]:
+    """Dependency that returns decoded token payload or None if not authenticated.
+
+    Unlike `get_current_user`, this does not raise an error for missing tokens.
+    Useful for endpoints that work with or without authentication.
+    """
+    if DISABLE_AUTH:
+        return {"sub": "dev", "roles": ["admin"]}
+
+    if not authorization:
+        return None
+
+    try:
+        if authorization.lower().startswith("bearer "):
+            token = authorization.split(None, 1)[1]
+        else:
+            token = authorization
+        return decode_token(token)
+    except HTTPException:
+        return None
+
+
 # Lightweight endpoint helpers for testing: create a token (dev use only)
 def issue_dev_token(subject: str = "dev") -> str:
     return create_access_token(subject=subject)

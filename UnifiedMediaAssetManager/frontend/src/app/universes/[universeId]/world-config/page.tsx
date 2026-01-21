@@ -11,11 +11,15 @@ import {
   deleteWorldConfig,
 } from '@/services/api';
 import { useIsClient } from '@/hooks/useIsClient';
+import { useToast } from '@/context/ToastContext';
+import { ConfirmModal } from '@/components/Modal';
+import { Skeleton } from '@/components/Skeleton';
 
 export default function WorldConfigPage() {
   const params = useParams();
   const router = useRouter();
   const { universeId } = params;
+  const toast = useToast();
 
   const [config, setConfig] = useState<WorldConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,6 +27,10 @@ export default function WorldConfigPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const isClient = useIsClient();
+
+  // Delete confirmation modal
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form state
   const [genre, setGenre] = useState('');
@@ -77,7 +85,7 @@ export default function WorldConfigPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!genre.trim() || typeof universeId !== 'string') {
-      alert('Genre is required.');
+      toast.warning('Please select a genre for your world.');
       return;
     }
 
@@ -105,15 +113,15 @@ export default function WorldConfigPage() {
         // Update existing config
         const updatedConfig = await updateWorldConfig(universeId, configData);
         setConfig(updatedConfig);
-        setSuccessMessage('World configuration updated successfully!');
+        toast.success('World configuration updated successfully!');
       } else {
         // Create new config
         const newConfig = await createWorldConfig(universeId, configData);
         setConfig(newConfig);
-        setSuccessMessage('World configuration created successfully!');
+        toast.success('World configuration created successfully!');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to save world configuration. Please try again.');
+      toast.error(err.message || 'Failed to save world configuration. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -122,14 +130,8 @@ export default function WorldConfigPage() {
   const handleDelete = async () => {
     if (!config || typeof universeId !== 'string') return;
 
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this world configuration? This action cannot be undone.'
-    );
-
-    if (!confirmed) return;
-
     try {
-      setIsSaving(true);
+      setIsDeleting(true);
       await deleteWorldConfig(universeId);
       setConfig(null);
       // Reset form
@@ -142,11 +144,12 @@ export default function WorldConfigPage() {
       setPrimaryColor('');
       setSecondaryColor('');
       setAccentColor('');
-      setSuccessMessage('World configuration deleted successfully!');
+      toast.success('World configuration deleted successfully!');
+      setDeleteModalOpen(false);
     } catch (err: any) {
-      setError(err.message || 'Failed to delete world configuration.');
+      toast.error(err.message || 'Failed to delete world configuration.');
     } finally {
-      setIsSaving(false);
+      setIsDeleting(false);
     }
   };
 
@@ -377,7 +380,7 @@ export default function WorldConfigPage() {
             {config && (
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => setDeleteModalOpen(true)}
                 disabled={isSaving}
                 className="inline-flex justify-center py-2 px-6 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -455,6 +458,19 @@ export default function WorldConfigPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={handleDelete}
+        title="Delete World Configuration"
+        message="Are you sure you want to delete this world configuration? This action cannot be undone and will remove all settings for this universe's world."
+        confirmText="Delete Configuration"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

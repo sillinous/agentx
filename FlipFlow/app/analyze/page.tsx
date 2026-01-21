@@ -1,23 +1,45 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, Loader2, ExternalLink, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, ExternalLink, AlertCircle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { AnalysisResult } from '@/lib/analyzer';
 import AnalysisResultComponent from '@/components/AnalysisResult';
+import { useToast } from '@/components/ui/toast';
+
+const LOADING_STEPS = [
+  'Validating listing URL...',
+  'Parsing listing details...',
+  'Analyzing financial metrics...',
+  'Evaluating growth potential...',
+  'Assessing risks and opportunities...',
+  'Generating comprehensive report...',
+];
 
 export default function AnalyzePage() {
   const [url, setUrl] = useState('');
   const [listingData, setListingData] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [credits, setCredits] = useState<{ remaining: number | string; unlimited: boolean } | null>(null);
+  const toast = useToast();
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setResult(null);
+    setLoadingStep(0);
+
+    // Simulate progress through loading steps
+    const stepInterval = setInterval(() => {
+      setLoadingStep((prev) => {
+        if (prev < LOADING_STEPS.length - 1) return prev + 1;
+        return prev;
+      });
+    }, 2500);
 
     try {
       const response = await fetch('/api/analyze', {
@@ -28,15 +50,46 @@ export default function AnalyzePage() {
 
       const data = await response.json();
 
+      clearInterval(stepInterval);
+
       if (!response.ok) {
+        // Handle specific error codes
+        if (data.code === 'RATE_LIMITED') {
+          toast.warning('Rate Limit Exceeded', data.message || 'Please wait before trying again.');
+          throw new Error(data.message || 'Too many requests. Please try again later.');
+        }
+        if (data.code === 'NO_CREDITS') {
+          toast.warning('No Credits Remaining', 'Upgrade your plan for more analyses.');
+          throw new Error(data.message || 'You have used all your free analyses.');
+        }
         throw new Error(data.error || 'Analysis failed');
       }
 
       setResult(data.analysis);
+
+      // Store credits info if returned
+      if (data.credits) {
+        setCredits(data.credits);
+        if (data.credits.unlimited) {
+          toast.success('Analysis Complete', 'Your FlipScore report is ready!');
+        } else {
+          const remaining = data.credits.remaining;
+          toast.success(
+            'Analysis Complete',
+            `Your FlipScore report is ready! ${remaining} ${remaining === 1 ? 'analysis' : 'analyses'} remaining.`
+          );
+        }
+      } else {
+        toast.success('Analysis Complete', 'Your FlipScore report is ready!');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      clearInterval(stepInterval);
+      const errorMessage = err instanceof Error ? err.message : 'Something went wrong';
+      setError(errorMessage);
+      toast.error('Analysis Failed', errorMessage);
     } finally {
       setLoading(false);
+      setLoadingStep(0);
     }
   };
 
@@ -45,6 +98,7 @@ export default function AnalyzePage() {
     setListingData('');
     setResult(null);
     setError('');
+    toast.info('Ready for Next Analysis', 'Enter a new listing to analyze.');
   };
 
   return (
@@ -52,15 +106,26 @@ export default function AnalyzePage() {
       {/* Navigation */}
       <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
+          <Link href="/dashboard" className="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
             <ArrowLeft className="w-5 h-5" />
-            <span>Back to Home</span>
+            <span>Dashboard</span>
           </Link>
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">FF</span>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">FF</span>
+              </div>
+              <span className="text-xl font-bold gradient-text">FlipFlow Analyzer</span>
             </div>
-            <span className="text-xl font-bold gradient-text">FlipFlow Analyzer</span>
+            {credits && (
+              <div className="hidden sm:flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                {credits.unlimited ? (
+                  <span>Unlimited</span>
+                ) : (
+                  <span>{credits.remaining} analyses left</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </nav>
@@ -174,11 +239,38 @@ Description: Established blog about budgeting and saving money...
                   </>
                 ) : (
                   <>
+                    <Sparkles className="w-5 h-5" />
                     <span>Analyze Deal</span>
-                    <ExternalLink className="w-5 h-5" />
                   </>
                 )}
               </button>
+
+              {/* Loading Progress */}
+              {loading && (
+                <div className="bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6">
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="relative">
+                      <div className="w-16 h-16 rounded-full border-4 border-blue-200"></div>
+                      <div
+                        className="absolute inset-0 w-16 h-16 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"
+                      ></div>
+                      <Sparkles className="absolute inset-0 m-auto w-6 h-6 text-blue-600" />
+                    </div>
+                  </div>
+                  <p className="text-center text-blue-800 font-medium mb-2">
+                    {LOADING_STEPS[loadingStep]}
+                  </p>
+                  <div className="w-full bg-blue-100 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${((loadingStep + 1) / LOADING_STEPS.length) * 100}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-center text-sm text-blue-600 mt-2">
+                    Step {loadingStep + 1} of {LOADING_STEPS.length}
+                  </p>
+                </div>
+              )}
             </form>
 
             {/* Sample Data */}

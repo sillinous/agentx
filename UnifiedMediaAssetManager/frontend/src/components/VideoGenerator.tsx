@@ -23,6 +23,13 @@ export function VideoGenerator({ universeId, onVideoGenerated }: VideoGeneratorP
     const [duration, setDuration] = useState(5);
     const [negativePrompt, setNegativePrompt] = useState('');
 
+    // LTX-2 specific state
+    const [provider, setProvider] = useState<string>('ltx');
+    const [ltxModel, setLtxModel] = useState<string>('ltx-2-pro');
+    const [ltxResolution, setLtxResolution] = useState<string>('1920x1080');
+    const [ltxFps, setLtxFps] = useState<number>(25);
+    const [audioSyncEnabled, setAudioSyncEnabled] = useState<boolean>(false);
+
     // Strategy preview
     const [strategies, setStrategies] = useState<VideoStrategyVariation[]>([]);
     const [selectedStrategy, setSelectedStrategy] = useState<VideoStrategyVariation | null>(null);
@@ -92,6 +99,11 @@ export function VideoGenerator({ universeId, onVideoGenerated }: VideoGeneratorP
                 aspect_ratio: aspectRatio,
                 duration,
                 negative_prompt: negativePrompt || undefined,
+                provider,
+                ltx_model: ltxModel,
+                ltx_resolution: ltxResolution,
+                ltx_fps: ltxFps,
+                audio_sync_enabled: audioSyncEnabled,
             });
 
             setCurrentJobId(result.job_id);
@@ -226,6 +238,88 @@ export function VideoGenerator({ universeId, onVideoGenerated }: VideoGeneratorP
                             </select>
                         </div>
                     </div>
+
+                    {/* Provider Selection */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Video Provider
+                        </label>
+                        <select
+                            value={provider}
+                            onChange={(e) => setProvider(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500"
+                        >
+                            <option value="ltx">LTX-2 (Recommended)</option>
+                            <option value="runway">Runway ML</option>
+                            <option value="mock">Mock (Testing)</option>
+                        </select>
+                    </div>
+
+                    {/* LTX-2 Specific Options */}
+                    {provider === 'ltx' && (
+                        <div className="bg-indigo-50 border border-indigo-200 rounded-md p-4 space-y-4">
+                            <h3 className="text-sm font-semibold text-indigo-900">LTX-2 Settings</h3>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Model
+                                    </label>
+                                    <select
+                                        value={ltxModel}
+                                        onChange={(e) => setLtxModel(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="ltx-2-fast">LTX-2 Fast (Preview)</option>
+                                        <option value="ltx-2-pro">LTX-2 Pro (High Quality)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Resolution
+                                    </label>
+                                    <select
+                                        value={ltxResolution}
+                                        onChange={(e) => setLtxResolution(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="1920x1080">1080p (Full HD)</option>
+                                        <option value="2560x1440">1440p (2K)</option>
+                                        <option value="3840x2160">4K (Ultra HD)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Frame Rate
+                                    </label>
+                                    <select
+                                        value={ltxFps}
+                                        onChange={(e) => setLtxFps(Number(e.target.value))}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value={25}>25 FPS (Standard)</option>
+                                        <option value={50}>50 FPS (Smooth)</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-center">
+                                    <label className="flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={audioSyncEnabled}
+                                            onChange={(e) => setAudioSyncEnabled(e.target.checked)}
+                                            className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                        />
+                                        <span className="ml-2 text-sm font-medium text-gray-700">
+                                            Synchronized Audio
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Negative Prompt (Advanced) */}
                     <details className="group">

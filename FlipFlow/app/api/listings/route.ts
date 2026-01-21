@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getListings, getListingByUrl } from '@/lib/db';
 import type { ListingFilters } from '@/lib/types';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 /**
  * GET /api/listings

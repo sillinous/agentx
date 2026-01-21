@@ -110,8 +110,16 @@ jobs:
       - name: Check formatting with black
         run: poetry run black --check . --exclude=.venv
 
-      - name: Run backend tests
-        run: poetry run pytest -v --tb=short
+      - name: Run backend tests with coverage
+        run: poetry run pytest -v --tb=short --cov=. --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: synapse-core/packages/marketing-agent/coverage.xml
+          flags: marketing-agent
+          fail_ci_if_error: false
 
   # ============================================
   # Builder Agent Tests
@@ -150,8 +158,16 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction
 
-      - name: Run builder agent tests
-        run: poetry run pytest -v --tb=short
+      - name: Run builder agent tests with coverage
+        run: poetry run pytest -v --tb=short --cov=. --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: synapse-core/packages/builder-agent/coverage.xml
+          flags: builder-agent
+          fail_ci_if_error: false
 
   # ============================================
   # Analytics Agent Tests
@@ -190,5 +206,13 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction
 
-      - name: Run analytics agent tests
-        run: poetry run pytest -v --tb=short
+      - name: Run analytics agent tests with coverage
+        run: poetry run pytest -v --tb=short --cov=. --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: synapse-core/packages/analytics-agent/coverage.xml
+          flags: analytics-agent
+          fail_ci_if_error: false

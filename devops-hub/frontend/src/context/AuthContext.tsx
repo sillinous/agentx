@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 
@@ -18,9 +19,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing API key on mount
+    // Check for existing API key on mount - intentional initialization pattern
     const storedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
     if (storedKey) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setApiKey(storedKey);
     }
     setIsLoading(false);

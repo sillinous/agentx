@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: devops-hub
+  labels:
+    app.kubernetes.io/name: devops-hub
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: devops-hub
+    app.kubernetes.io/component: backend
+  ports:
+    - name: http
+      port: 8100
+      targetPort: 8100
+      protocol: TCP

@@ -10,6 +10,8 @@ import type {
   ScrapeResult,
   ScrapeError,
   ScraperConfig,
+} from './types';
+import {
   RateLimitError,
   ScrapeTimeoutError,
   NetworkError,
@@ -183,8 +185,8 @@ export class FlippaScraper {
       // Initialize browser
       await this.init();
 
-      // Apply defaults
-      const opts: Required<ScrapeOptions> = {
+      // Apply defaults - use ScrapeOptions with required base fields
+      const opts = {
         maxPages: options.maxPages || 5,
         itemsPerPage: options.itemsPerPage || 20,
         startPage: options.startPage || 1,

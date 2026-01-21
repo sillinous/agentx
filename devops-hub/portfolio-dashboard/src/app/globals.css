@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-display: "Syne", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "Courier New", monospace;
+  }
+
+  body {
+    @apply bg-black text-white;
+    font-family: var(--font-mono);
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #00ff88 0%, #00ccff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .border-gradient {
+    border-image: linear-gradient(135deg, #00ff88 0%, #00ccff 100%) 1;
+  }
+
+  .glow {
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+  }
+
+  .data-card {
+    @apply border border-zinc-800 bg-zinc-950/50 backdrop-blur-sm;
+    transition: all 0.3s ease;
+  }
+
+  .data-card:hover {
+    @apply border-primary/50 glow;
+  }
+}

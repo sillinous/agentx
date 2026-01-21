@@ -1,0 +1,95 @@
+[11:14:41] [INFO] Starting FlipFlow E2E Test Suite...
+[11:14:41] [INFO] ======================================================================
+[11:14:41] [INFO] MANUAL END-TO-END PAYMENT TEST
+[11:14:41] [INFO] ======================================================================
+[11:14:41] [INFO] 
+[11:14:41] [STEP] STEP 1: Create Test Account
+[11:14:41] [INFO] ----------------------------------------------------------------------
+[11:14:41] [INFO]   1. Open browser to: http://localhost:3000/signup
+[11:14:41] [INFO]   2. Enter email: test_1768151681@example.com
+[11:14:41] [INFO]   3. Enter password: TestPassword123!
+[11:14:41] [INFO]   4. Click 'Sign Up'
+[11:14:41] [INFO]   5. Verify email if required (check console/logs for magic link)
+[11:14:41] [SUCCESS]   ✓ Expected: User account created successfully
+[11:14:41] [INFO] 
+[11:14:41] [INFO] 
+[11:14:41] [STEP] STEP 2: Navigate to Pricing
+[11:14:41] [INFO] ----------------------------------------------------------------------
+[11:14:41] [INFO]   1. Go to: http://localhost:3000/pricing
+[11:14:41] [INFO]   2. Verify both pricing tiers are visible:
+[11:14:41] [INFO]      - Starter Pack: $9.99 (10 analyses)
+[11:14:41] [INFO]      - Pro Plan: $49/month (unlimited)
+[11:14:41] [SUCCESS]   ✓ Expected: Pricing page displays correctly
+[11:14:41] [INFO] 
+[11:14:41] [INFO] 
+[11:14:41] [STEP] STEP 3: Test Starter Pack Purchase
+[11:14:41] [INFO] ----------------------------------------------------------------------
+[11:14:41] [INFO]   1. Click 'Get Started' on Starter Pack
+[11:14:41] [INFO]   2. Wait for Stripe Checkout redirect
+[11:14:41] [INFO]   3. Enter test card: 4242 4242 4242 4242
+[11:14:41] [INFO]   4. Expiry: 12/34
+[11:14:41] [INFO]   5. CVC: 123
+[11:14:41] [INFO]   6. ZIP: 12345
+[11:14:41] [INFO]   7. Click 'Pay $9.99'
+[11:14:41] [SUCCESS]   ✓ Expected: Payment successful, redirected to success page
+[11:14:41] [INFO] 
+[11:14:41] [INFO] 
+[11:14:41] [STEP] STEP 4: Verify Credit Allocation
+[11:14:41] [INFO] ----------------------------------------------------------------------
+[11:14:41] [INFO]   1. Go to: http://localhost:3000/dashboard
+[11:14:41] [INFO]   2. Check credit balance displays '10 credits'
+[11:14:41] [INFO]   3. Check Supabase users table:
+[11:14:41] [INFO]      - credits column = 10
+[11:14:41] [INFO]      - plan_id = 'starter'
+[11:14:41] [SUCCESS]   ✓ Expected: User has 10 credits
+[11:14:41] [INFO] 
+[11:14:41] [INFO] 
+[11:14:41] [STEP] STEP 5: Test Analysis Functionality
+[11:14:41] [INFO] ----------------------------------------------------------------------
+[11:14:41] [INFO]   1. Go to: http://localhost:3000/analyze
+[11:14:41] [INFO]   2. Enter test URL: https://flippa.com/listing/12345
+[11:14:41] [INFO]   3. Click 'Analyze'
+[11:14:41] [INFO]   4. Wait for analysis to complete
+[11:14:41] [INFO]   5. Verify credit decremented to 9
+[11:14:41] [SUCCESS]   ✓ Expected: Analysis completes, credits decremented
+[11:14:41] [INFO] 
+[11:14:41] [INFO] 
+[11:14:41] [STEP] STEP 6: Test Pro Plan Subscription
+[11:14:41] [INFO] ----------------------------------------------------------------------
+[11:14:41] [INFO]   1. Go to: http://localhost:3000/pricing
+[11:14:41] [INFO]   2. Click 'Get Started' on Pro Plan
+[11:14:41] [INFO]   3. Use test card: 4242 4242 4242 4242
+[11:14:41] [INFO]   4. Complete checkout
+[11:14:41] [INFO]   5. Verify unlimited credits
+[11:14:41] [SUCCESS]   ✓ Expected: Subscription active, unlimited analyses
+[11:14:41] [INFO] 
+[11:14:41] [INFO] 
+[11:14:41] [STEP] STEP 7: Test Webhook Processing
+[11:14:41] [INFO] ----------------------------------------------------------------------
+[11:14:41] [INFO]   1. Open Stripe Dashboard → Developers → Webhooks
+[11:14:41] [INFO]   2. Find your webhook endpoint
+[11:14:41] [INFO]   3. Check 'Events' tab
+[11:14:41] [INFO]   4. Verify these events were delivered:
+[11:14:41] [INFO]      - checkout.session.completed
+[11:14:41] [INFO]      - customer.subscription.created (for Pro)
+[11:14:41] [INFO]   5. Click each event → 'Response' → Verify 200 OK
+[11:14:41] [SUCCESS]   ✓ Expected: All webhooks delivered successfully
+[11:14:41] [INFO] 
+[11:14:41] [INFO] 
+[11:14:41] [STEP] STEP 8: Test Error Scenarios
+[11:14:41] [INFO] ----------------------------------------------------------------------
+[11:14:41] [INFO]   1. Try purchasing with declined card: 4000 0000 0000 0002
+[11:14:41] [INFO]   2. Verify error message displays
+[11:14:41] [INFO]   3. Verify no credits allocated
+[11:14:41] [INFO]   4. Verify webhook shows failed payment
+[11:14:41] [SUCCESS]   ✓ Expected: Errors handled gracefully
+[11:14:41] [INFO] 
+[11:14:41] [INFO] ======================================================================
+[11:14:41] [INFO] Additional Test Cases
+[11:14:41] [INFO] ======================================================================
+[11:14:41] [INFO] □ Credit Depletion: Use all 10 credits, verify user prompted to upgrade
+[11:14:41] [INFO] □ Subscription Cancellation: Cancel Pro plan, verify reverts to free tier
+[11:14:41] [INFO] □ Concurrent Requests: Start multiple analyses simultaneously, verify credit locking
+[11:14:41] [INFO] □ Email Notifications: Verify emails sent for: purchase confirmation, low credits, subscription renewal
+[11:14:41] [INFO] □ Webhook Retry: Simulate webhook failure, verify Stripe retries
+[11:14:41] [SUCCESS] ✓ Test checklist saved to: FLIPFLOW_TEST_CHECKLIST.md

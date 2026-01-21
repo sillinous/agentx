@@ -1,11 +1,13 @@
 fastapi
 uvicorn[standard]
+python-multipart>=0.0.9
 
 # Persistence
 sqlmodel
 sqlalchemy
+psycopg2-binary>=2.9.0  # PostgreSQL driver
 
-# Migrations (optional)
+# Migrations
 alembic
 requests
 Pillow
@@ -13,6 +15,7 @@ SQLAlchemy==2.0.25
 python-dotenv==1.0.1
 PyJWT>=2.8.0
 pytest
+pytest-asyncio>=0.21.0
 httpx
 boto3
 botocore
@@ -28,9 +31,14 @@ anthropic>=0.18.0
 # Video Processing
 ffmpeg-python>=0.2.0
 
-# Audio Processing
-openai-whisper>=20231117
+# Audio Processing (pydub is lightweight, whisper is optional)
 pydub>=0.25.1
+# openai-whisper - OPTIONAL: Install separately for local transcription
+# pip install openai-whisper (requires ~1GB download for model)
 
 # Additional HTTP Clients
 aiohttp>=3.9.0
+
+# Monitoring & Observability
+sentry-sdk[fastapi]>=1.40.0
+prometheus-fastapi-instrumentator>=6.1.0

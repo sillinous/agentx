@@ -258,12 +258,12 @@ class AudioAgent(BaseAgent):
             logger.info("OpenAI Whisper API provider initialized")
 
         # Set default providers based on mode and availability
-        if tts_mode == "real" and "elevenlabs" in self.providers:
+        if tts_mode in ("real", "elevenlabs") and "elevenlabs" in self.providers:
             self.default_tts_provider = "elevenlabs"
         else:
             self.default_tts_provider = "mock"
 
-        if transcribe_mode == "real" and "openai_whisper" in self.providers:
+        if transcribe_mode in ("real", "whisper", "openai_whisper") and "openai_whisper" in self.providers:
             self.default_transcribe_provider = "openai_whisper"
         else:
             self.default_transcribe_provider = "mock"

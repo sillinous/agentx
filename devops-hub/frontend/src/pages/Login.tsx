@@ -37,6 +37,12 @@ export default function Login() {
     }
   };
 
+  const handleGuestLogin = () => {
+    // Use a special guest token for anonymous access (backend allows anonymous read by default)
+    login('__guest__');
+    navigate(from, { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="max-w-md w-full">
@@ -63,10 +69,28 @@ export default function Login() {
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? 'Authenticating...' : 'Sign In'}
             </Button>
+
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              onClick={handleGuestLogin}
+              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700"
+            >
+              Continue as Guest
+            </Button>
           </form>
 
           <div className="mt-4 text-center text-sm text-gray-500">
-            <p>Contact your administrator if you need an API key.</p>
+            <p>Guest mode provides read-only access to the platform.</p>
+            <p className="mt-1">Contact your administrator for an API key with full access.</p>
           </div>
         </Card>
       </div>

@@ -3,10 +3,12 @@ import type { HTMLAttributes } from 'react';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   padding?: 'none' | 'sm' | 'md' | 'lg';
+  hover?: boolean;
+  animate?: boolean;
 }
 
 const Card = forwardRef<HTMLDivElement, CardProps>(
-  ({ className = '', padding = 'md', children, ...props }, ref) => {
+  ({ className = '', padding = 'md', hover = false, animate = false, children, ...props }, ref) => {
     const paddings = {
       none: '',
       sm: 'p-3',
@@ -14,10 +16,13 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
       lg: 'p-6',
     };
 
+    const hoverClass = hover ? 'card-hover cursor-pointer' : '';
+    const animateClass = animate ? 'animate-fade-in-up' : '';
+
     return (
       <div
         ref={ref}
-        className={`bg-white rounded-lg border border-gray-200 shadow-sm ${paddings[padding]} ${className}`}
+        className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-gray-900/20 transition-colors ${paddings[padding]} ${hoverClass} ${animateClass} ${className}`}
         {...props}
       >
         {children}

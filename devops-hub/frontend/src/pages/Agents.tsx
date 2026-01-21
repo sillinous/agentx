@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Select, Input, LoadingScreen } from '../components/ui';
+import { Card, Select, Input, SkeletonCard, NoAgentsFound, SearchNoResults, Breadcrumbs } from '../components/ui';
 import { AgentCard } from '../components/agents';
 import { useDiscoverAgents, useDomains, useCapabilities } from '../api/hooks';
 
@@ -30,10 +30,12 @@ export default function Agents() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs />
+
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Agents</h1>
-        <p className="text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Agents</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           Discover and interact with available agents
         </p>
       </div>
@@ -89,7 +91,11 @@ export default function Agents() {
 
       {/* Results */}
       {isLoading ? (
-        <LoadingScreen message="Loading agents..." />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
       ) : filteredAgents.length > 0 ? (
         <>
           <div className="flex items-center justify-between">
@@ -103,16 +109,10 @@ export default function Agents() {
             ))}
           </div>
         </>
+      ) : search || filters.domain || filters.capability || filters.agent_type ? (
+        <SearchNoResults query={search || 'your filters'} />
       ) : (
-        <Card>
-          <div className="text-center py-12">
-            <div className="text-4xl mb-4">🔍</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No agents found</h3>
-            <p className="text-gray-500">
-              Try adjusting your filters or search terms
-            </p>
-          </div>
-        </Card>
+        <NoAgentsFound />
       )}
     </div>
   );

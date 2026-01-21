@@ -9,6 +9,7 @@ import type {
   HealthStatus,
   APIError,
   StreamEvent,
+  DashboardMetrics,
 } from './types';
 
 // API base URL - uses Next.js API routes as proxy
@@ -158,6 +159,11 @@ export const synapseAPI = {
       method: 'POST',
       body: JSON.stringify({ query, content_type: contentType, limit }),
     });
+  },
+
+  // Get dashboard metrics
+  async getDashboardMetrics(): Promise<DashboardMetrics> {
+    return fetchAPI<DashboardMetrics>('/dashboard/metrics');
   },
 };
 

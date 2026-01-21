@@ -52,3 +52,23 @@ CREATE TABLE IF NOT EXISTS alerts (
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- PERFORMANCE INDEXES
+
+-- Users: Email lookups for authentication
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- Listings: Status and creation date for filtering/sorting
+CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(listing_status);
+CREATE INDEX IF NOT EXISTS idx_listings_created ON listings(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_listings_category ON listings(category);
+CREATE INDEX IF NOT EXISTS idx_listings_asking_price ON listings(asking_price);
+
+-- Analyses: Optimize queries by listing, score, and creation date
+CREATE INDEX IF NOT EXISTS idx_analyses_listing ON analyses(listing_id);
+CREATE INDEX IF NOT EXISTS idx_analyses_score ON analyses(score DESC);
+CREATE INDEX IF NOT EXISTS idx_analyses_created ON analyses(created_at DESC);
+
+-- Alerts: Find active alerts for users
+CREATE INDEX IF NOT EXISTS idx_alerts_user ON alerts(user_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_active ON alerts(user_id, is_active) WHERE is_active = true;

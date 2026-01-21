@@ -2,9 +2,9 @@
 
 > **IMPORTANT**: All AI agents, developers, and automated systems MUST read this file at the start of each session. Update this file when significant changes are made to the project.
 
-**Last Updated**: 2025-01-09
-**Project Status**: 95%+ Complete, Production-Ready
-**Version**: 1.0.0
+**Last Updated**: 2026-01-16
+**Project Status**: 80-85% Functional, Near Production-Ready
+**Version**: 0.9.5
 
 ---
 
@@ -13,29 +13,45 @@
 ### What This Project Is
 A **comprehensive, production-ready SaaS platform for Lego collection management and trading** with AI-powered brick detection and marketplace integration.
 
-### Current State
+### Current State (Updated Assessment)
 | Metric | Value |
 |--------|-------|
-| Total LOC | 20,450+ |
-| Completion | 95%+ |
-| Phases Complete | 10/10 |
-| Requirements Met | 21/22 |
-| Production Readiness | Enterprise-Grade |
+| Total LOC | ~30,000 |
+| Functional Completion | 80-85% |
+| Architecture Complete | 95% |
+| Database Tables | 25+ (including forum, auth tokens, follows) |
+| Test Coverage | ~30% (unit tests added) |
 
 ### What's Working
-- Multi-tenant SaaS platform with enterprise security
-- 30,000+ Lego pieces database with 19 tables
-- GraphQL API (75+ operations, 200+ methods)
-- Mobile app (React Native/Expo - 7 screens, offline support)
-- Market integration (BrickLink, eBay, BrickOwl)
-- Community platform (forums, trading, profiles)
-- Production deployment (Docker, Kubernetes, CI/CD)
-- 4 monetization models implemented
+- GraphQL API server with JWT authentication + bcrypt password hashing
+- Mobile app structure (7 screens, navigation)
+- Market integrations (BrickLink, eBay, BrickOwl connectors)
+- Database schema with multi-tenant RLS + migrations
+- Admin dashboard with full backend resolvers
+- **Real-time subscriptions** via Redis PubSub
+- **Email notification service** (SendGrid, SES, SMTP)
+- **Forum/community features** (posts, likes, reports, comments)
+- **Comprehensive error handling** with error codes
+- **Seed data** (50+ colors, 100+ pieces, 25+ sets, sample users)
+- Docker/Kubernetes infrastructure
+- CI/CD pipelines
+- Unit tests for core services
 
-### What's Missing (5%)
-1. **Vision AI Models** - Framework ready, trained models needed (HIGH PRIORITY)
-2. **Admin Dashboard UI** - API exists, UI pending (MEDIUM)
-3. **Optional Features** - Barcode scanning, email notifications, advanced search (LOW)
+### What's Remaining (15-20%)
+1. **Vision AI Models** - Framework ready, trained models needed (CRITICAL)
+2. **Run seed data** - Data defined, needs to be loaded into database
+3. **End-to-end testing** - Integration tests need to be run
+4. **Mobile app polish** - UX improvements needed
+
+### Recent Changes (2026-01-16 - Session 2)
+- Added comprehensive seed data (colors, pieces, sets, users)
+- Implemented GraphQL subscriptions with Redis PubSub
+- Added error handling with error codes and validation
+- Created forum/community resolvers (posts, likes, reports)
+- Implemented email notification service
+- Added bcrypt password hashing
+- Created unit tests for auth, errors, and email services
+- Added new database migrations (005, 006) for forum and auth tables
 
 ---
 
@@ -83,25 +99,23 @@ LegoAppV0/
 
 | Priority | Task | Status | Notes |
 |----------|------|--------|-------|
-| **P0** | Vision Model Training | Pending | Blocks full functionality |
-| **P0** | Integration Testing | Pending | Validate all systems work |
-| **P0** | Production Deployment | Pending | Staging environment needed |
-| **P1** | Load Testing | Pending | Before beta launch |
-| **P1** | Beta Launch Prep | Pending | App store submissions |
-| **P2** | Admin Dashboard UI | Pending | API exists |
-| **P2** | UX Improvements | Ongoing | User experience focus |
+| **P0** | Load Rebrickable Data | Pending | Database is empty, blocks all features |
+| **P0** | Run Integration Tests | Ready | Script created at `scripts/test-integration.ts` |
+| **P0** | Deploy to Staging | Pending | Docker configs ready |
+| **P1** | Vision Model Training | Pending | Requires labeled dataset (4-6 weeks) |
+| **P1** | Security Hardening | Pending | Replace hardcoded secrets |
+| **P2** | Load Testing | Pending | Before beta launch |
+| **P2** | Mobile App Polish | Pending | UX improvements needed |
 
 ---
 
 ## Key Files Reference
 
 ### Documentation (Read These First)
-- `FINAL_STATUS_REPORT.md` - Executive summary
+- `REALISTIC_STATUS_ASSESSMENT.md` - **Honest assessment (NEW)**
 - `GAP_ANALYSIS_FINAL.md` - Detailed gap analysis
 - `VALUE_CREATION_ROADMAP.md` - Strategic next steps
-- `UX_IMPROVEMENT_PLAN.md` - Prioritized UX improvements (43 items)
 - `VISION_MODEL_TRAINING_GUIDE.md` - ML training instructions
-- `TRAINING_QUICK_START.md` - Quick start for ML training
 
 ### Configuration
 - `package.json` (root) - Workspace configuration
@@ -126,12 +140,18 @@ cd apps/mobile && npm start          # Mobile app
 cd packages/admin && npm run dev     # Admin dashboard
 
 # Testing
-npm test                             # Run all tests
-./scripts/test-integration.sh        # Integration tests
+npx ts-node scripts/test-integration.ts  # Integration tests (NEW)
+npm test                                  # Run unit tests
 
-# Docker
-docker-compose up -d                 # Start all services
-docker-compose down                  # Stop all services
+# Docker (recommended for local dev)
+docker-compose -f docker-compose.lego-vision.yml up -d    # Start all services
+docker-compose -f docker-compose.lego-vision.yml logs -f  # View logs
+docker-compose -f docker-compose.lego-vision.yml down     # Stop all services
+
+# Load Lego Data (IMPORTANT - database is empty!)
+cd packages/database
+npm run build
+REBRICKABLE_API_KEY=your_key node dist/lego-data-loader.js
 
 # Database
 npm run db:migrate                   # Run migrations
@@ -180,6 +200,8 @@ The mobile app has 7 complete screens but needs polish. Key issues:
 ### Version History
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.9.5 | 2026-01-16 | Subscriptions, forum, email, auth, error handling, tests |
+| 0.9.0 | 2026-01-16 | Realistic assessment, admin resolvers, integration tests |
 | 1.0.0 | 2025-01-09 | Initial AI context file created |
 
 ---
@@ -225,4 +247,4 @@ The mobile app has 7 complete screens but needs polish. Key issues:
 
 ---
 
-**Remember**: This project is 95% complete. Focus on finishing the remaining 5% (vision models, testing, deployment) before adding new features.
+**Remember**: This project is 80-85% complete. Focus on: (1) Loading seed data into database, (2) Running integration tests, (3) Vision model training for full functionality.

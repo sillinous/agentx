@@ -1,0 +1,221 @@
+# DevOps Hub - Prometheus Alerting Rules
+# Add to your Prometheus configuration: rule_files: ["alerts.yml"]
+
+groups:
+  - name: devops-hub-availability
+    rules:
+      # API is down
+      - alert: DevOpsHubDown
+        expr: up{job="devops-hub"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DevOps Hub API is down"
+          description: "The DevOps Hub API has been unreachable for more than 1 minute."
+          runbook_url: "https://your-docs/runbooks/devops-hub-down"
+
+      # Health check failing
+      - alert: DevOpsHubHealthCheckFailing
+        expr: probe_success{job="devops-hub-health"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DevOps Hub health check failing"
+          description: "Health check endpoint is returning errors."
+
+  - name: devops-hub-latency
+    rules:
+      # High latency
+      - alert: DevOpsHubHighLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="devops-hub"}[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile latency is above 1 second for the last 5 minutes. Current value: {{ $value | humanizeDuration }}"
+
+      # Very high latency
+      - alert: DevOpsHubCriticalLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="devops-hub"}[5m])) by (le)) > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical API latency detected"
+          description: "95th percentile latency is above 5 seconds. Current value: {{ $value | humanizeDuration }}"
+
+  - name: devops-hub-errors
+    rules:
+      # High error rate
+      - alert: DevOpsHubHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="devops-hub",status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="devops-hub"}[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "More than 5% of requests are failing. Current rate: {{ $value | humanizePercentage }}"
+
+      # Critical error rate
+      - alert: DevOpsHubCriticalErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="devops-hub",status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="devops-hub"}[5m]))
+          > 0.20
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical error rate detected"
+          description: "More than 20% of requests are failing. Current rate: {{ $value | humanizePercentage }}"
+
+      # 4xx error spike
+      - alert: DevOpsHubHigh4xxRate
+        expr: |
+          sum(rate(http_requests_total{job="devops-hub",status=~"4.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="devops-hub"}[5m]))
+          > 0.25
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 4xx error rate"
+          description: "More than 25% of requests are returning 4xx errors. This may indicate client issues or rate limiting."
+
+  - name: devops-hub-rate-limiting
+    rules:
+      # Rate limiting active
+      - alert: DevOpsHubRateLimitingActive
+        expr: sum(rate(http_requests_total{job="devops-hub",status="429"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Rate limiting is active"
+          description: "Clients are being rate limited. Consider increasing limits or scaling the service."
+
+  - name: devops-hub-resources
+    rules:
+      # High memory usage
+      - alert: DevOpsHubHighMemoryUsage
+        expr: |
+          container_memory_usage_bytes{container="backend"}
+          /
+          container_spec_memory_limit_bytes{container="backend"}
+          > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Backend container is using more than 85% of allocated memory."
+
+      # High CPU usage
+      - alert: DevOpsHubHighCPUUsage
+        expr: |
+          rate(container_cpu_usage_seconds_total{container="backend"}[5m])
+          /
+          container_spec_cpu_quota{container="backend"}
+          * 100000
+          > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "Backend container is using more than 85% of allocated CPU."
+
+  - name: devops-hub-database
+    rules:
+      # Database connection issues
+      - alert: DevOpsHubDatabaseConnectionFailed
+        expr: devops_hub_database_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection failed"
+          description: "Unable to connect to the database. Check database health and connectivity."
+
+      # Slow database queries
+      - alert: DevOpsHubSlowDatabaseQueries
+        expr: histogram_quantile(0.95, sum(rate(database_query_duration_seconds_bucket{job="devops-hub"}[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow database queries detected"
+          description: "95th percentile database query time is above 500ms."
+
+  - name: devops-hub-agents
+    rules:
+      # Agent execution failures
+      - alert: DevOpsHubAgentExecutionFailures
+        expr: |
+          sum(rate(agent_executions_total{job="devops-hub",status="failed"}[5m]))
+          /
+          sum(rate(agent_executions_total{job="devops-hub"}[5m]))
+          > 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High agent execution failure rate"
+          description: "More than 10% of agent executions are failing."
+
+      # Workflow execution failures
+      - alert: DevOpsHubWorkflowExecutionFailures
+        expr: |
+          sum(rate(workflow_executions_total{job="devops-hub",status="failed"}[5m]))
+          /
+          sum(rate(workflow_executions_total{job="devops-hub"}[5m]))
+          > 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High workflow execution failure rate"
+          description: "More than 10% of workflow executions are failing."
+
+  - name: devops-hub-redis
+    rules:
+      # Redis connection issues
+      - alert: DevOpsHubRedisConnectionFailed
+        expr: devops_hub_redis_connected == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis connection failed"
+          description: "Unable to connect to Redis. Caching and pub/sub functionality may be degraded."
+
+  - name: devops-hub-backup
+    rules:
+      # Backup not running
+      - alert: DevOpsHubBackupMissing
+        expr: time() - devops_hub_last_backup_timestamp > 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No backup in 24 hours"
+          description: "The last successful backup was more than 24 hours ago. Check backup job status."
+
+      # Backup failed
+      - alert: DevOpsHubBackupFailed
+        expr: devops_hub_last_backup_success == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Last backup failed"
+          description: "The most recent backup attempt failed. Check backup logs."

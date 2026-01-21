@@ -192,3 +192,25 @@ class AgentRegistry:
             except Exception:
                 pass
         return count
+    
+    def reload(self) -> int:
+        """
+        Reload agent registry from file.
+        
+        Clears current state and reloads from registry_path.
+        Returns number of agents loaded.
+        """
+        if not self.registry_path or not self.registry_path.exists():
+            return 0
+        
+        # Clear current state
+        self.agents.clear()
+        self._index_by_domain.clear()
+        self._index_by_capability.clear()
+        self._index_by_status.clear()
+        self._index_by_type.clear()
+        
+        # Reload from file
+        self._load_from_file()
+        
+        return len(self.agents)

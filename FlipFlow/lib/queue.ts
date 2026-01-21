@@ -3,6 +3,8 @@
  * Simple in-memory job queue for scraping and analysis tasks
  */
 
+import { logger } from './logger';
+
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export type JobType = 'scrape' | 'analyze' | 'alert' | 'cleanup';
 
@@ -110,7 +112,7 @@ export class JobQueue {
     this.jobs.set(job.id, job);
     this.emit('added', job);
 
-    console.log(`Job ${job.id} (${job.type}) added to queue`);
+    logger.debug(`Job ${job.id} (${job.type}) added to queue`, { jobId: job.id, jobType: job.type });
 
     // Start processing if not at max concurrent
     this.processNext();
@@ -273,18 +275,72 @@ export class JobQueue {
   }
 
   /**
-   * Process alert job
+   * Process alert job - send email notifications
    */
   private async processAlertJob(job: Job<AlertJobData>): Promise<any> {
-    // Send alert to user (email, webhook, etc.)
-    console.log(`Sending alert to user ${job.data.userId} for ${job.data.listings.length} listings`);
+    const { sendAlertEmail } = await import('./email');
+    const { getServiceSupabase } = await import('./supabase');
 
-    // TODO: Implement email/webhook notification
+    console.log(`Processing alert for user ${job.data.userId} with ${job.data.listings.length} listings`);
 
-    return {
-      success: true,
-      listingsAlerted: job.data.listings.length,
-    };
+    try {
+      const client = getServiceSupabase();
+
+      // Get user email
+      const { data: user } = await client
+        .from('users')
+        .select('email, name')
+        .eq('id', job.data.userId as any)
+        .single();
+
+      const userData = user as { email: string; name: string } | null;
+      if (!userData?.email) {
+        console.error(`User ${job.data.userId} not found or has no email`);
+        return { success: false, error: 'User not found' };
+      }
+
+      // Get listing details with analyses
+      const { data: listings } = await client
+        .from('listings')
+        .select(`
+          id, title, url, asking_price,
+          analyses(score, deal_quality)
+        `)
+        .in('id', job.data.listings as any);
+
+      if (!listings || listings.length === 0) {
+        console.warn('No listings found for alert');
+        return { success: false, error: 'No listings found' };
+      }
+
+      // Format listings for email
+      const emailListings = (listings as any[]).map((listing: any) => ({
+        title: listing.title,
+        score: listing.analyses?.[0]?.score || 0,
+        url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://flipflow.ai'}/analyze?url=${encodeURIComponent(listing.url)}`,
+      }));
+
+      // Send alert email
+      const result = await sendAlertEmail(userData.email, emailListings);
+
+      if (result.success) {
+        console.log(`Alert email sent to ${userData.email} for ${listings.length} listings`);
+      } else {
+        console.error(`Failed to send alert email: ${result.error}`);
+      }
+
+      return {
+        success: result.success,
+        listingsAlerted: listings.length,
+        emailSent: result.success,
+      };
+    } catch (error) {
+      console.error('Error processing alert job:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
   }
 
   /**
@@ -296,19 +352,140 @@ export class JobQueue {
   }
 
   /**
-   * Store listings in database (placeholder)
+   * Store listings in database
    */
-  private async storeListings(listings: any[]): Promise<void> {
-    // TODO: Implement database storage
-    console.log(`Storing ${listings.length} listings in database`);
+  private async storeListings(listings: any[]): Promise<{ stored: number; analyzed: number }> {
+    const { saveListing, getLatestAnalysisForListing } = await import('./db');
+    const { analyzeFlippaListing } = await import('./analyzer');
+
+    let stored = 0;
+    let analyzed = 0;
+
+    for (const listing of listings) {
+      try {
+        // Map scraped listing to database format
+        const listingData = {
+          flippa_id: listing.flippaId || listing.id,
+          url: listing.url,
+          title: listing.title || 'Untitled',
+          description: listing.description || null,
+          asking_price: listing.askingPrice || null,
+          monthly_revenue: listing.monthlyRevenue || null,
+          monthly_profit: listing.monthlyProfit || null,
+          category: listing.category || null,
+          listing_status: listing.status === 'sold' ? 'sold' : 'active',
+        };
+
+        const savedListing = await saveListing(listingData);
+        stored++;
+
+        // Check if listing needs analysis (no existing analysis)
+        const existingAnalysis = await getLatestAnalysisForListing(savedListing.id);
+        if (!existingAnalysis && listing.askingPrice > 0) {
+          // Queue analysis job for this listing
+          const listingDataStr = JSON.stringify({
+            title: listing.title,
+            url: listing.url,
+            askingPrice: listing.askingPrice,
+            monthlyRevenue: listing.monthlyRevenue,
+            monthlyProfit: listing.monthlyProfit,
+            category: listing.category,
+            description: listing.description?.substring(0, 2000),
+            ageMonths: listing.ageMonths,
+            monthlyVisitors: listing.monthlyVisitors,
+          });
+
+          this.add<AnalyzeJobData>('analyze', {
+            listingId: savedListing.id,
+            listingUrl: listing.url,
+            listingData: listingDataStr,
+          });
+          analyzed++;
+        }
+
+        console.log(`Stored listing: ${listing.title} (${savedListing.id})`);
+      } catch (error) {
+        console.error(`Failed to store listing ${listing.url}:`, error);
+      }
+    }
+
+    console.log(`Stored ${stored} listings, queued ${analyzed} for analysis`);
+    return { stored, analyzed };
   }
 
   /**
-   * Store analysis in database (placeholder)
+   * Store analysis in database and check alerts
    */
   private async storeAnalysis(listingId: string, analysis: any): Promise<void> {
-    // TODO: Implement database storage
-    console.log(`Storing analysis for listing ${listingId}`);
+    const { saveAnalysis } = await import('./db');
+    const { getServiceSupabase } = await import('./supabase');
+
+    try {
+      // Get listing details for the analysis
+      const client = getServiceSupabase();
+      const { data: listing } = await client
+        .from('listings')
+        .select('*')
+        .eq('id', listingId as any)
+        .single();
+
+      const listingData = listing as { id: string; url: string; title: string; asking_price: number } | null;
+      if (!listingData) {
+        console.error(`Listing ${listingId} not found for analysis storage`);
+        return;
+      }
+
+      // Save analysis to database
+      const analysisDataToSave = {
+        score: analysis.score,
+        dealQuality: analysis.dealQuality,
+        recommendation: analysis.recommendation,
+        summary: analysis.summary,
+        valuation: analysis.valuation,
+        financials: analysis.financials,
+      };
+
+      await saveAnalysis('system', listingData.url, analysisDataToSave);
+      console.log(`Analysis stored for listing ${listingId} - Score: ${analysis.score}`);
+
+      // Check if this listing matches any user alerts
+      if (analysis.score >= 60) {
+        await this.checkAndTriggerAlerts(listingData, analysis);
+      }
+    } catch (error) {
+      console.error(`Failed to store analysis for ${listingId}:`, error);
+    }
+  }
+
+  /**
+   * Check if listing matches any alerts and queue notifications
+   */
+  private async checkAndTriggerAlerts(listing: any, analysis: any): Promise<void> {
+    const { getAllActiveAlerts } = await import('./db');
+
+    try {
+      const alerts = await getAllActiveAlerts();
+
+      for (const alert of alerts) {
+        // Check if listing matches alert criteria
+        const matchesScore = !alert.min_score || analysis.score >= alert.min_score;
+        const matchesPrice = !alert.max_price || (listing.asking_price && listing.asking_price <= alert.max_price);
+
+        if (matchesScore && matchesPrice && alert.user_id) {
+          // Queue alert notification
+          this.add<AlertJobData>('alert', {
+            userId: alert.user_id,
+            alertId: alert.id,
+            listings: [listing.id],
+            minScore: alert.min_score || undefined,
+          });
+
+          console.log(`Alert ${alert.name} triggered for listing ${listing.title}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking alerts:', error);
+    }
   }
 
   /**

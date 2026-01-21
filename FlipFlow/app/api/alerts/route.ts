@@ -8,7 +8,7 @@ import {
 } from '@/lib/db';
 import type { AlertInsert } from '@/lib/types';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 /**
  * GET /api/alerts

@@ -4,7 +4,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { User, Mail, Calendar, Shield, AlertCircle, Check } from 'lucide-react';
-import { createSupabaseBrowserClient } from '@/lib/supabase';
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 export default function SettingsPage() {
   const { user, loading } = useAuth();

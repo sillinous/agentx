@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 
 export default function RegisterPage() {
     const router = useRouter();
     const { register, isAuthenticated, isLoading } = useAuth();
+    const toast = useToast();
     const [formData, setFormData] = useState({
         username: '',
         password: '',
@@ -17,6 +19,32 @@ export default function RegisterPage() {
     });
     const [error, setError] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+    const passwordStrength = useMemo(() => {
+        const { password } = formData;
+        if (!password) return { score: 0, label: '', color: '' };
+
+        let score = 0;
+        if (password.length >= 8) score++;
+        if (password.length >= 12) score++;
+        if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
+        if (/\d/.test(password)) score++;
+        if (/[^a-zA-Z0-9]/.test(password)) score++;
+
+        const levels = [
+            { label: 'Very Weak', color: 'bg-red-500' },
+            { label: 'Weak', color: 'bg-orange-500' },
+            { label: 'Fair', color: 'bg-yellow-500' },
+            { label: 'Good', color: 'bg-blue-500' },
+            { label: 'Strong', color: 'bg-green-500' },
+        ];
+
+        return { score, ...levels[Math.min(score, 4)] };
+    }, [formData.password]);
+
+    const passwordsMatch = formData.password && formData.confirmPassword &&
+        formData.password === formData.confirmPassword;
 
     // Redirect if already authenticated
     if (isAuthenticated && !isLoading) {
@@ -29,6 +57,11 @@ export default function RegisterPage() {
             ...prev,
             [e.target.name]: e.target.value,
         }));
+        if (error) setError('');
+    };
+
+    const handleBlur = (field: string) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -57,6 +90,7 @@ export default function RegisterPage() {
         );
 
         if (result.success) {
+            toast.success('Account created successfully! Welcome aboard.');
             router.push('/');
         } else {
             setError(result.error || 'Registration failed');
@@ -154,7 +188,30 @@ export default function RegisterPage() {
                                 placeholder="At least 8 characters"
                                 value={formData.password}
                                 onChange={handleChange}
+                                onBlur={() => handleBlur('password')}
                             />
+                            {formData.password && (
+                                <div className="mt-2">
+                                    <div className="flex gap-1 mb-1">
+                                        {[1, 2, 3, 4, 5].map((level) => (
+                                            <div
+                                                key={level}
+                                                className={`h-1 flex-1 rounded ${
+                                                    level <= passwordStrength.score
+                                                        ? passwordStrength.color
+                                                        : 'bg-gray-200'
+                                                }`}
+                                            />
+                                        ))}
+                                    </div>
+                                    <p className={`text-xs ${
+                                        passwordStrength.score < 2 ? 'text-red-600' :
+                                        passwordStrength.score < 4 ? 'text-yellow-600' : 'text-green-600'
+                                    }`}>
+                                        Password strength: {passwordStrength.label}
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <div>
@@ -166,11 +223,23 @@ export default function RegisterPage() {
                                 name="confirmPassword"
                                 type="password"
                                 required
-                                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                className={`mt-1 appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
+                                    touched.confirmPassword && formData.confirmPassword
+                                        ? passwordsMatch
+                                            ? 'border-green-500'
+                                            : 'border-red-500'
+                                        : 'border-gray-300'
+                                }`}
                                 placeholder="Confirm your password"
                                 value={formData.confirmPassword}
                                 onChange={handleChange}
+                                onBlur={() => handleBlur('confirmPassword')}
                             />
+                            {touched.confirmPassword && formData.confirmPassword && (
+                                <p className={`mt-1 text-xs ${passwordsMatch ? 'text-green-600' : 'text-red-600'}`}>
+                                    {passwordsMatch ? 'Passwords match' : 'Passwords do not match'}
+                                </p>
+                            )}
                         </div>
                     </div>
 

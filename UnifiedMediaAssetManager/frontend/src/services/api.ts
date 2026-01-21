@@ -57,7 +57,7 @@ export interface Model3DComponent extends BaseComponent {
 export interface AttributeComponent extends BaseComponent {
     type: "AttributeComponent";
     data: {
-        attributes: { [key: string]: any };
+        attributes: Record<string, unknown>;
     };
 }
 
@@ -167,9 +167,23 @@ function authHeaders(): Record<string, string> {
 /**
  * Fetches all universes from the backend.
  */
-export async function getAllUniverses(): Promise<Universe[]> {
+/**
+ * Fetches all universes with optional pagination and search.
+ * @param options - Pagination and search options
+ */
+export async function getAllUniverses(options?: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+}): Promise<Universe[]> {
     try {
-        const response = await fetch(`${API_BASE_URL}/universes`);
+        const params = new URLSearchParams();
+        if (options?.limit) params.append('limit', options.limit.toString());
+        if (options?.offset) params.append('offset', options.offset.toString());
+        if (options?.search) params.append('search', options.search);
+        
+        const url = `${API_BASE_URL}/universes${params.toString() ? '?' + params.toString() : ''}`;
+        const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -241,6 +255,36 @@ export async function addElementToUniverse(universeId: string, elementData: { na
 }
 
 /**
+ * Gets elements in a universe with optional pagination and filtering.
+ * @param universeId The ID of the universe.
+ * @param options - Pagination and filter options
+ */
+export async function getElementsInUniverse(universeId: string, options?: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+    element_type?: string;
+}): Promise<Element[]> {
+    try {
+        const params = new URLSearchParams();
+        if (options?.limit) params.append('limit', options.limit.toString());
+        if (options?.offset) params.append('offset', options.offset.toString());
+        if (options?.search) params.append('search', options.search);
+        if (options?.element_type) params.append('element_type', options.element_type);
+        
+        const url = `${API_BASE_URL}/universes/${universeId}/elements${params.toString() ? '?' + params.toString() : ''}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Failed to fetch elements for universe ${universeId}:`, error);
+        return [];
+    }
+}
+
+/**
  * Adds a new component to an element.
  * @param universeId The ID of the universe containing the element.
  * @param elementId The ID of the element.
@@ -261,11 +305,227 @@ export async function addComponentToElement(universeId: string, elementId: strin
     return await response.json();
 }
 
+// =============================================================================
+// Universe CRUD Operations
+// =============================================================================
+
 /**
- * Calls the AI service to generate an image from a prompt.
- * @param prompt The text prompt for the image generation.
+ * Updates an existing universe.
+ * @param universeId The ID of the universe to update.
+ * @param updateData The data to update (name, description).
  */
-export async function generateImage(prompt: string): Promise<{ url: string }> {
+export async function updateUniverse(universeId: string, updateData: { name?: string; description?: string }): Promise<Universe> {
+    const response = await fetch(`${API_BASE_URL}/universes/${universeId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+        },
+        body: JSON.stringify(updateData),
+    });
+    if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            window.dispatchEvent(new CustomEvent(AUTH_ERROR_EVENT, { detail: { status: response.status } }));
+        }
+        const error = await response.json().catch(() => ({ detail: 'Update failed' }));
+        throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Deletes a universe and all its contents.
+ * @param universeId The ID of the universe to delete.
+ */
+export async function deleteUniverse(universeId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/universes/${universeId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            window.dispatchEvent(new CustomEvent(AUTH_ERROR_EVENT, { detail: { status: response.status } }));
+        }
+        const error = await response.json().catch(() => ({ detail: 'Delete failed' }));
+        throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    }
+}
+
+// =============================================================================
+// Element CRUD Operations
+// =============================================================================
+
+/**
+ * Gets a single element by its ID.
+ * @param universeId The ID of the universe containing the element.
+ * @param elementId The ID of the element to fetch.
+ */
+export async function getElementById(universeId: string, elementId: string): Promise<Element | null> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/universes/${universeId}/elements/${elementId}`);
+        if (!response.ok) {
+            if (response.status === 404) {
+                return null;
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Failed to fetch element ${elementId}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Updates an existing element.
+ * @param universeId The ID of the universe containing the element.
+ * @param elementId The ID of the element to update.
+ * @param updateData The data to update (name, element_type).
+ */
+export async function updateElement(universeId: string, elementId: string, updateData: { name?: string; element_type?: string }): Promise<Element> {
+    const response = await fetch(`${API_BASE_URL}/universes/${universeId}/elements/${elementId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+        },
+        body: JSON.stringify(updateData),
+    });
+    if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            window.dispatchEvent(new CustomEvent(AUTH_ERROR_EVENT, { detail: { status: response.status } }));
+        }
+        const error = await response.json().catch(() => ({ detail: 'Update failed' }));
+        throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Deletes an element and all its components.
+ * @param universeId The ID of the universe containing the element.
+ * @param elementId The ID of the element to delete.
+ */
+export async function deleteElement(universeId: string, elementId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/universes/${universeId}/elements/${elementId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            window.dispatchEvent(new CustomEvent(AUTH_ERROR_EVENT, { detail: { status: response.status } }));
+        }
+        const error = await response.json().catch(() => ({ detail: 'Delete failed' }));
+        throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    }
+}
+
+// =============================================================================
+// Component CRUD Operations
+// =============================================================================
+
+/**
+ * Gets all components for an element.
+ * @param universeId The ID of the universe.
+ * @param elementId The ID of the element.
+ * @param componentType Optional filter by component type.
+ */
+export async function getComponentsForElement(universeId: string, elementId: string, componentType?: string): Promise<AnyComponent[]> {
+    try {
+        const params = new URLSearchParams();
+        if (componentType) params.append('component_type', componentType);
+
+        const url = `${API_BASE_URL}/universes/${universeId}/elements/${elementId}/components${params.toString() ? '?' + params.toString() : ''}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Failed to fetch components for element ${elementId}:`, error);
+        return [];
+    }
+}
+
+/**
+ * Gets a single component by its ID.
+ * @param universeId The ID of the universe.
+ * @param elementId The ID of the element.
+ * @param componentId The ID of the component to fetch.
+ */
+export async function getComponentById(universeId: string, elementId: string, componentId: string): Promise<AnyComponent | null> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/universes/${universeId}/elements/${elementId}/components/${componentId}`);
+        if (!response.ok) {
+            if (response.status === 404) {
+                return null;
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Failed to fetch component ${componentId}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Updates an existing component.
+ * @param universeId The ID of the universe.
+ * @param elementId The ID of the element.
+ * @param componentId The ID of the component to update.
+ * @param updateData The data to update (type, data).
+ */
+export async function updateComponent(
+    universeId: string,
+    elementId: string,
+    componentId: string,
+    updateData: { type?: string; data?: Record<string, unknown> }
+): Promise<AnyComponent> {
+    const response = await fetch(`${API_BASE_URL}/universes/${universeId}/elements/${elementId}/components/${componentId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+        },
+        body: JSON.stringify(updateData),
+    });
+    if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            window.dispatchEvent(new CustomEvent(AUTH_ERROR_EVENT, { detail: { status: response.status } }));
+        }
+        const error = await response.json().catch(() => ({ detail: 'Update failed' }));
+        throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Deletes a component.
+ * @param universeId The ID of the universe.
+ * @param elementId The ID of the element.
+ * @param componentId The ID of the component to delete.
+ */
+export async function deleteComponent(universeId: string, elementId: string, componentId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/universes/${universeId}/elements/${elementId}/components/${componentId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            window.dispatchEvent(new CustomEvent(AUTH_ERROR_EVENT, { detail: { status: response.status } }));
+        }
+        const error = await response.json().catch(() => ({ detail: 'Delete failed' }));
+        throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    }
+}
+
+/**
+ * Calls the AI service to generate a simple image from a prompt.
+ * @param prompt The text prompt for the image generation.
+ * @deprecated Use generateImage with ImageGenerateRequest for full functionality
+ */
+export async function generateSimpleImage(prompt: string): Promise<{ url: string }> {
     const response = await fetch(`${API_BASE_URL}/ai/generate/image`, {
         method: 'POST',
         headers: {
@@ -277,6 +537,117 @@ export async function generateImage(prompt: string): Promise<{ url: string }> {
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
     }
+    return await response.json();
+}
+
+// =============================================================================
+// 3D Model Upload API Functions
+// =============================================================================
+
+export interface Model3DUploadResponse {
+    model_id: string;
+    filename: string;
+    url: string;
+    file_size: number;
+    format: string;
+}
+
+export interface Model3DInfo {
+    model_id: string;
+    filename: string;
+    url: string;
+    file_size: number;
+    format: string;
+    universe_id: string | null;
+}
+
+/**
+ * Upload a 3D model file (GLTF/GLB).
+ * @param file The 3D model file to upload
+ * @param universeId Optional universe ID to associate the model with
+ */
+export async function uploadModel(file: File, universeId?: string): Promise<Model3DUploadResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    let url = `${API_BASE_URL}/api/models/upload`;
+    if (universeId) {
+        url += `?universe_id=${encodeURIComponent(universeId)}`;
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Upload failed' }));
+        throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Get information about an uploaded 3D model.
+ * @param modelId The model ID
+ */
+export async function getModelInfo(modelId: string): Promise<Model3DInfo | null> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/models/${modelId}`, {
+            headers: authHeaders(),
+        });
+        if (!response.ok) {
+            if (response.status === 404) {
+                return null;
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Failed to get model info for ${modelId}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Delete an uploaded 3D model.
+ * @param modelId The model ID to delete
+ */
+export async function deleteModel(modelId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/models/${modelId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+}
+
+/**
+ * List uploaded 3D models.
+ * @param options Filter and pagination options
+ */
+export async function listModels(options?: {
+    universeId?: string;
+    limit?: number;
+    offset?: number;
+}): Promise<{ models: Model3DInfo[]; total: number; has_more: boolean }> {
+    const params = new URLSearchParams();
+    if (options?.universeId) params.append('universe_id', options.universeId);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+
+    const url = `${API_BASE_URL}/api/models/?${params.toString()}`;
+    const response = await fetch(url, {
+        headers: authHeaders(),
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
     return await response.json();
 }
 
@@ -607,17 +978,46 @@ export async function getEventParticipants(eventId: string): Promise<{ event_id:
 export interface VideoJob {
     id: string;
     universe_id?: string;
+    agent_job_id?: string;
+
+    // Request parameters
     generation_type: string;
     prompt: string;
-    status: string;
-    provider?: string;
-    provider_job_id?: string;
+    negative_prompt?: string;
+    reference_image_url?: string;
+
+    // Strategy parameters
     mood_category?: string;
     camera_movement?: string;
-    output_video_url?: string;
-    created_at?: string;
-    completed_at?: string;
+    aspect_ratio?: string;
+    duration?: number;
+
+    // Provider details
+    provider?: string;
+    provider_job_id?: string;
+    provider_status?: string;
+
+    // LTX-2 specific parameters
+    ltx_model?: string;
+    ltx_resolution?: string;
+    ltx_fps?: number;
+    audio_sync_enabled?: boolean;
+    ltx_request_id?: string;
+
+    // Generated content
+    video_url?: string;
+    output_video_url?: string;  // Legacy alias for video_url
+    thumbnail_url?: string;
+    local_path?: string;
+    file_size?: number;
+
+    // Metadata
+    status: string;
     error_message?: string;
+    extra_metadata?: Record<string, unknown>;
+    created_at?: string;
+    started_at?: string;
+    completed_at?: string;
 }
 
 export interface VideoGenerateRequest {
@@ -629,6 +1029,15 @@ export interface VideoGenerateRequest {
     mood?: number;
     aspect_ratio?: string;
     duration?: number;
+    
+    // Provider selection
+    provider?: string;
+    
+    // LTX-2 specific parameters
+    ltx_model?: string;
+    ltx_resolution?: string;
+    ltx_fps?: number;
+    audio_sync_enabled?: boolean;
 }
 
 export interface VideoStrategyVariation {
@@ -670,13 +1079,21 @@ export async function generateVideo(request: VideoGenerateRequest): Promise<{
 export async function listVideoJobs(filters?: {
     universe_id?: string;
     status?: string;
+    provider?: string;
     limit?: number;
-}): Promise<{ jobs: VideoJob[]; total: number }> {
+    offset?: number;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+}): Promise<{ jobs: VideoJob[]; total: number; has_more: boolean }> {
     try {
         const params = new URLSearchParams();
         if (filters?.universe_id) params.append('universe_id', filters.universe_id);
         if (filters?.status) params.append('status', filters.status);
+        if (filters?.provider) params.append('provider', filters.provider);
         if (filters?.limit) params.append('limit', filters.limit.toString());
+        if (filters?.offset) params.append('offset', filters.offset.toString());
+        if (filters?.sort_by) params.append('sort_by', filters.sort_by);
+        if (filters?.sort_order) params.append('sort_order', filters.sort_order);
 
         const url = `${API_BASE_URL}/api/video/jobs${params.toString() ? '?' + params.toString() : ''}`;
         const response = await fetch(url, { headers: authHeaders() });
@@ -686,7 +1103,7 @@ export async function listVideoJobs(filters?: {
         return await response.json();
     } catch (error) {
         console.error('Failed to fetch video jobs:', error);
-        return { jobs: [], total: 0 };
+        return { jobs: [], total: 0, has_more: false };
     }
 }
 
@@ -738,12 +1155,135 @@ export async function generateVideoStrategy(request: {
 }
 
 // =============================================================================
+// Video Transcoding API Functions
+// =============================================================================
+
+export interface TranscodeProfile {
+    name: string;
+    resolution: string;
+    codec: string;
+    bitrate: string;
+    container: string;
+    description: string;
+}
+
+export interface TranscodeVariant {
+    success: boolean;
+    platform: string;
+    profile?: string;
+    output_path?: string;
+    public_url?: string;
+    file_size?: number;
+    width?: number;
+    height?: number;
+    bitrate?: string;
+    codec?: string;
+    container?: string;
+    error?: string;
+}
+
+export interface TranscodeResult {
+    job_id: string;
+    success_count: number;
+    failure_count: number;
+    variants: TranscodeVariant[];
+}
+
+/**
+ * Transcode a video to multiple platform formats.
+ */
+export async function transcodeVideo(
+    jobId: string,
+    platforms: string[]
+): Promise<TranscodeResult> {
+    const response = await fetch(`${API_BASE_URL}/api/video/jobs/${jobId}/transcode`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+        },
+        body: JSON.stringify({ platforms }),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Get all encoding variants for a video job.
+ */
+export async function getVideoVariants(jobId: string): Promise<{
+    job_id: string;
+    original_url: string | null;
+    original_path: string | null;
+    variants: TranscodeVariant[];
+}> {
+    const response = await fetch(`${API_BASE_URL}/api/video/jobs/${jobId}/variants`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Get available transcoding profiles.
+ */
+export async function getTranscodeProfiles(): Promise<{ profiles: TranscodeProfile[] }> {
+    const response = await fetch(`${API_BASE_URL}/api/video/transcode/profiles`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Get detailed video file information.
+ */
+export async function getVideoFileInfo(jobId: string): Promise<{
+    job_id: string;
+    video_info: {
+        format?: string;
+        duration?: number;
+        file_size?: number;
+        bit_rate?: number;
+        video?: {
+            codec?: string;
+            width?: number;
+            height?: number;
+            fps?: string;
+        };
+        audio?: {
+            codec?: string;
+            sample_rate?: string;
+            channels?: number;
+        };
+        error?: string;
+    };
+}> {
+    const response = await fetch(`${API_BASE_URL}/api/video/jobs/${jobId}/info`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+// =============================================================================
 // Phase 4: Audio Processing API Functions
 // =============================================================================
 
+// Response from /api/audio/tts and /api/audio/transcribe endpoints
 export interface AudioJob {
     job_id: string;
     status: string;
+    error?: string;  // Top-level error for failed jobs
     result?: {
         success: boolean;
         transcription?: string;
@@ -751,6 +1291,27 @@ export interface AudioJob {
         duration?: number;
         error?: string;
     };
+}
+
+// Full audio job details from /api/audio/jobs and /api/audio/jobs/{id}
+export interface AudioJobDetails {
+    id: string;
+    universe_id?: string;
+    generation_type: string;
+    prompt?: string;
+    status: string;
+    provider?: string;
+    voice_id?: string;
+    language?: string;
+    audio_url?: string;
+    local_path?: string;
+    file_size?: number;
+    duration?: number;
+    transcription?: Record<string, unknown>;
+    created_at?: string;
+    completed_at?: string;
+    error_message?: string;
+    error?: string;  // Alias for error_message for convenience
 }
 
 /**
@@ -831,4 +1392,955 @@ export async function analyzeAudio(request: {
     return await response.json();
 }
 
+/**
+ * Lists audio jobs with filtering and pagination.
+ */
+export async function listAudioJobs(filters?: {
+    universe_id?: string;
+    generation_type?: string;
+    provider?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+}): Promise<{ jobs: AudioJobDetails[]; total: number; limit: number; offset: number; has_more: boolean }> {
+    try {
+        const params = new URLSearchParams();
+        if (filters?.universe_id) params.append('universe_id', filters.universe_id);
+        if (filters?.generation_type) params.append('generation_type', filters.generation_type);
+        if (filters?.provider) params.append('provider', filters.provider);
+        if (filters?.status) params.append('status', filters.status);
+        if (filters?.limit) params.append('limit', filters.limit.toString());
+        if (filters?.offset) params.append('offset', filters.offset.toString());
+        if (filters?.sort_by) params.append('sort_by', filters.sort_by);
+        if (filters?.sort_order) params.append('sort_order', filters.sort_order);
 
+        const url = `${API_BASE_URL}/api/audio/jobs${params.toString() ? '?' + params.toString() : ''}`;
+        const response = await fetch(url, { headers: authHeaders() });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Failed to fetch audio jobs:', error);
+        return { jobs: [], total: 0, limit: 20, offset: 0, has_more: false };
+    }
+}
+
+/**
+ * Gets a specific audio job by ID.
+ */
+export async function getAudioJobDetails(jobId: string): Promise<AudioJobDetails | null> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/audio/jobs/${jobId}`, {
+            headers: authHeaders(),
+        });
+        if (!response.ok) {
+            if (response.status === 404) return null;
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Failed to fetch audio job ${jobId}:`, error);
+        return null;
+    }
+}
+
+// --- Story Deconstruction Types ---
+
+export interface CharacterStub {
+    name: string;
+    description: string;
+    role: string;
+    traits: {
+        physical?: string;
+        personality?: string;
+        background?: string;
+        motivations?: string;
+        relationships?: string;
+    };
+    first_appearance?: string;
+    significance: string;
+}
+
+export interface TimelineEventStub {
+    title: string;
+    description: string;
+    participants: string[];
+    location?: string;
+    event_type: string;
+    significance: string;
+    sequence_order: number;
+}
+
+export interface LocationStub {
+    name: string;
+    description: string;
+    location_type: string;
+    atmosphere?: string;
+    significance?: string;
+}
+
+export interface ItemStub {
+    name: string;
+    description: string;
+    item_type: string;
+    owner?: string;
+    significance?: string;
+}
+
+export interface WorldContextStub {
+    genre?: string;
+    tone?: string;
+    themes?: string[];
+    tech_level?: string;
+    magic_system?: string;
+    time_period?: string;
+}
+
+export interface DeconstructionResult {
+    characters: CharacterStub[];
+    timeline: TimelineEventStub[];
+    locations: LocationStub[];
+    items: ItemStub[];
+    world_context: WorldContextStub;
+    metadata: {
+        model: string;
+        tokens_used: number;
+        story_length: number;
+        extraction_targets: string[];
+        detail_level: string;
+    };
+}
+
+export interface DeconstructionJob {
+    job_id: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    confidence_score?: number;
+    human_review_required?: boolean;
+    created_at?: string;
+    completed_at?: string;
+    result?: DeconstructionResult;
+    error?: string;
+}
+
+export interface ImportResult {
+    success: boolean;
+    characters_created: number;
+    timeline_events_created: number;
+    locations_created: number;
+    items_created: number;
+    world_config_updated: boolean;
+    errors: string[];
+}
+
+// --- Story Deconstruction API Functions ---
+
+/**
+ * Deconstruct a story into structured elements.
+ */
+export async function deconstructStory(request: {
+    story_text: string;
+    extraction_targets?: string[];
+    detail_level?: 'minimal' | 'standard' | 'comprehensive';
+}): Promise<DeconstructionJob> {
+    const response = await fetch(`${API_BASE_URL}/api/deconstruction/analyze`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+        },
+        body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Get deconstruction job status and results.
+ */
+export async function getDeconstructionJob(jobId: string): Promise<DeconstructionJob> {
+    const response = await fetch(`${API_BASE_URL}/api/deconstruction/jobs/${jobId}`, {
+        method: 'GET',
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * List all deconstruction jobs.
+ */
+export async function listDeconstructionJobs(options?: {
+    limit?: number;
+    offset?: number;
+}): Promise<{
+    jobs: DeconstructionJob[];
+    total: number;
+    limit: number;
+    offset: number;
+}> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+
+    const response = await fetch(`${API_BASE_URL}/api/deconstruction/jobs?${params.toString()}`, {
+        method: 'GET',
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Import deconstruction results into a universe.
+ */
+export async function importDeconstruction(
+    universeId: string,
+    request: {
+        job_id: string;
+        import_characters?: boolean;
+        import_timeline?: boolean;
+        import_locations?: boolean;
+        import_items?: boolean;
+        apply_world_context?: boolean;
+    }
+): Promise<ImportResult> {
+    const response = await fetch(`${API_BASE_URL}/api/deconstruction/universes/${universeId}/import`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+        },
+        body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+// ============================================================================
+// Provider Health API
+// ============================================================================
+
+export interface ProviderHealthStatus {
+    status: 'ok' | 'error' | 'not_configured';
+    message?: string;
+    provider?: string;
+    subscription?: string;
+    models?: string[];
+}
+
+export interface AllProvidersHealth {
+    status: 'ok' | 'partial' | 'no_providers_configured';
+    providers: {
+        runway?: ProviderHealthStatus;
+        ltx?: ProviderHealthStatus;
+        elevenlabs?: ProviderHealthStatus;
+        openai_whisper?: ProviderHealthStatus;
+    };
+}
+
+export interface ProviderStatusConfig {
+    video: {
+        mode: string;
+        active_provider: string;
+        providers: {
+            runway: { configured: boolean };
+            ltx: { configured: boolean };
+        };
+    };
+    audio_tts: {
+        mode: string;
+        provider: string;
+        configured: boolean;
+    };
+    audio_transcribe: {
+        mode: string;
+        provider: string;
+        configured: boolean;
+    };
+}
+
+export interface Voice {
+    id: string;
+    name: string;
+    category: string;
+    labels?: Record<string, string>;
+    preview_url?: string;
+}
+
+/**
+ * Check health of all providers.
+ */
+export async function checkAllProvidersHealth(): Promise<AllProvidersHealth> {
+    const response = await fetch(`${API_BASE_URL}/api/providers/health`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Check health of a specific provider.
+ */
+export async function checkProviderHealth(providerName: string): Promise<ProviderHealthStatus> {
+    const response = await fetch(`${API_BASE_URL}/api/providers/health/${providerName}`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Get current provider configuration status.
+ */
+export async function getProviderStatus(): Promise<ProviderStatusConfig> {
+    const response = await fetch(`${API_BASE_URL}/api/providers/status`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * List available TTS voices.
+ */
+export async function listVoices(): Promise<Voice[]> {
+    const response = await fetch(`${API_BASE_URL}/api/providers/voices`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+// =============================================================================
+// Universe Templates API Functions
+// =============================================================================
+
+// Template summary for listing
+export interface UniverseTemplate {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    category: string;
+    tags: string[];
+    element_count: number;
+    event_count: number;
+    is_system: boolean;
+    use_count: number;
+    rating?: number;
+    created_at?: string;
+}
+
+// Full template detail with all data
+export interface UniverseTemplateDetail extends UniverseTemplate {
+    world_config: Record<string, unknown>;
+    elements: Array<{
+        name: string;
+        element_type: string;
+        description?: string;
+        traits?: Record<string, unknown>;
+    }>;
+    timeline_events: Array<{
+        event_name: string;
+        event_time: string;
+        event_description?: string;
+        event_type?: string;
+        importance?: number;
+    }>;
+    is_public: boolean;
+    created_by?: string;
+    updated_at?: string;
+}
+
+// Template creation/update payload
+export interface TemplateCreatePayload {
+    name: string;
+    description?: string;
+    icon?: string;
+    category?: string;
+    tags?: string[];
+    world_config?: Record<string, unknown>;
+    elements?: Array<{
+        name: string;
+        element_type: string;
+        description?: string;
+        traits?: Record<string, unknown>;
+    }>;
+    timeline_events?: Array<{
+        event_name: string;
+        event_time: string;
+        event_description?: string;
+        event_type?: string;
+        importance?: number;
+    }>;
+    is_public?: boolean;
+}
+
+export interface TemplateUpdatePayload {
+    name?: string;
+    description?: string;
+    icon?: string;
+    category?: string;
+    tags?: string[];
+    world_config?: Record<string, unknown>;
+    elements?: Array<{
+        name: string;
+        element_type: string;
+        description?: string;
+        traits?: Record<string, unknown>;
+    }>;
+    timeline_events?: Array<{
+        event_name: string;
+        event_time: string;
+        event_description?: string;
+        event_type?: string;
+        importance?: number;
+    }>;
+    is_public?: boolean;
+}
+
+export interface CreateFromTemplateResult {
+    success: boolean;
+    universe_id: string;
+    universe_name: string;
+    template_used: string;
+    elements_created: number;
+    events_created: number;
+    message: string;
+}
+
+/**
+ * List all available universe templates with optional filtering.
+ */
+export async function getTemplates(options?: {
+    category?: string;
+    search?: string;
+    tags?: string[];
+}): Promise<UniverseTemplate[]> {
+    const params = new URLSearchParams();
+    if (options?.category) params.append('category', options.category);
+    if (options?.search) params.append('search', options.search);
+    if (options?.tags && options.tags.length > 0) params.append('tags', options.tags.join(','));
+
+    const url = `${API_BASE_URL}/api/templates/${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Get all unique template categories.
+ */
+export async function getTemplateCategories(): Promise<string[]> {
+    const response = await fetch(`${API_BASE_URL}/api/templates/categories`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Get full details of a specific template.
+ */
+export async function getTemplateById(templateId: string): Promise<UniverseTemplateDetail | null> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/templates/${templateId}`, {
+            headers: authHeaders(),
+        });
+        if (!response.ok) {
+            if (response.status === 404) return null;
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Failed to fetch template ${templateId}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Create a new custom template.
+ */
+export async function createTemplate(data: TemplateCreatePayload): Promise<UniverseTemplateDetail> {
+    const response = await fetch(`${API_BASE_URL}/api/templates/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+        },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Update an existing template.
+ */
+export async function updateTemplate(templateId: string, data: TemplateUpdatePayload): Promise<UniverseTemplateDetail> {
+    const response = await fetch(`${API_BASE_URL}/api/templates/${templateId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+        },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Delete a custom template.
+ */
+export async function deleteTemplate(templateId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/templates/${templateId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+}
+
+/**
+ * Duplicate an existing template.
+ */
+export async function duplicateTemplate(templateId: string, newName?: string): Promise<UniverseTemplateDetail> {
+    const params = newName ? `?new_name=${encodeURIComponent(newName)}` : '';
+    const response = await fetch(`${API_BASE_URL}/api/templates/${templateId}/duplicate${params}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+        },
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Create a universe from a template.
+ */
+export async function createUniverseFromTemplate(
+    templateId: string,
+    universeName: string
+): Promise<CreateFromTemplateResult> {
+    const response = await fetch(
+        `${API_BASE_URL}/api/templates/${templateId}/create?universe_name=${encodeURIComponent(universeName)}`,
+        {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...authHeaders(),
+            },
+        }
+    );
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Seed system templates (admin function).
+ */
+export async function seedTemplates(): Promise<{ success: boolean; templates_added: number; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/templates/seed`, {
+        method: 'POST',
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+// =============================================================================
+// Analytics API Functions
+// =============================================================================
+
+export interface AnalyticsOverview {
+    entities: {
+        universes: number;
+        elements: number;
+    };
+    video_jobs: Record<string, number>;
+    audio_jobs: Record<string, number>;
+    agent_jobs: Record<string, number>;
+    timestamp: string;
+}
+
+export interface JobStats {
+    period_days: number;
+    video_jobs: {
+        by_day: Array<{ date: string; status: string; count: number }>;
+        total: number;
+        success_count: number;
+        success_rate: number;
+    };
+    audio_jobs: {
+        by_day: Array<{ date: string; status: string; count: number }>;
+        total: number;
+        success_count: number;
+        success_rate: number;
+    };
+    agent_jobs: {
+        by_day: Array<{ date: string; status: string; count: number }>;
+        total: number;
+        success_count: number;
+        success_rate: number;
+    };
+}
+
+export interface ProviderUsage {
+    period_days: number;
+    video_providers: Array<{
+        provider: string;
+        job_count: number;
+        total_bytes: number;
+    }>;
+    audio_providers: Array<{
+        provider: string;
+        job_count: number;
+        total_bytes: number;
+    }>;
+    agent_types: Array<{
+        agent_type: string;
+        job_count: number;
+    }>;
+}
+
+export interface ProcessingTimes {
+    period_days: number;
+    video_generation: {
+        average_seconds: number;
+        min_seconds: number;
+        max_seconds: number;
+        sample_size: number;
+    };
+    audio_processing: {
+        average_seconds: number;
+        min_seconds: number;
+        max_seconds: number;
+        sample_size: number;
+    };
+    agent_execution: {
+        average_seconds: number;
+        min_seconds: number;
+        max_seconds: number;
+        sample_size: number;
+    };
+}
+
+export interface RecentActivity {
+    activities: Array<{
+        type: 'video' | 'audio' | 'agent';
+        id: string;
+        status: string;
+        provider?: string;
+        job_type?: string;
+        agent_type?: string;
+        prompt?: string;
+        created_at: string;
+    }>;
+}
+
+/**
+ * Get high-level platform statistics.
+ */
+export async function getAnalyticsOverview(): Promise<AnalyticsOverview> {
+    const response = await fetch(`${API_BASE_URL}/api/analytics/overview`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Get job statistics for the last N days.
+ */
+export async function getJobStats(days: number = 7): Promise<JobStats> {
+    const response = await fetch(`${API_BASE_URL}/api/analytics/jobs/stats?days=${days}`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Get provider usage statistics.
+ */
+export async function getProviderUsage(days: number = 30): Promise<ProviderUsage> {
+    const response = await fetch(`${API_BASE_URL}/api/analytics/providers/usage?days=${days}`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Get average processing times.
+ */
+export async function getProcessingTimes(days: number = 7): Promise<ProcessingTimes> {
+    const response = await fetch(`${API_BASE_URL}/api/analytics/processing/times?days=${days}`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+/**
+ * Get recent activity feed.
+ */
+export async function getRecentActivity(limit: number = 20): Promise<RecentActivity> {
+    const response = await fetch(`${API_BASE_URL}/api/analytics/recent-activity?limit=${limit}`, {
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+// =============================================================================
+// Image Generation API Functions
+// =============================================================================
+
+export interface ImageJob {
+    id: string;
+    status: string;
+    generation_type: string;
+    prompt: string;
+    negative_prompt?: string;
+    width: number;
+    height: number;
+    num_inference_steps?: number;
+    guidance_scale?: number;
+    seed?: number;
+    style_preset?: string;
+    provider?: string;
+    model?: string;
+    image_url?: string;
+    local_path?: string;
+    file_size?: number;
+    error_message?: string;
+    created_at: string;
+    completed_at?: string;
+}
+
+export interface ImageGenerateRequest {
+    prompt: string;
+    negative_prompt?: string;
+    width?: number;
+    height?: number;
+    num_inference_steps?: number;
+    guidance_scale?: number;
+    seed?: number;
+    style_preset?: string;
+    provider?: string;
+    universe_id?: string;
+    element_id?: string;
+}
+
+export interface StylePreset {
+    name: string;
+    description: string;
+}
+
+export interface ImageSize {
+    name: string;
+    width: number;
+    height: number;
+}
+
+/**
+ * Generate an image using AI.
+ */
+export async function generateImage(request: ImageGenerateRequest): Promise<ImageJob> {
+    const response = await fetch(`${API_BASE_URL}/api/image/generate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+        },
+        body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+    return await response.json();
+}
+
+/**
+ * List image generation jobs with filtering.
+ */
+export async function listImageJobs(filters?: {
+    universe_id?: string;
+    element_id?: string;
+    status?: string;
+    page?: number;
+    page_size?: number;
+}): Promise<{ jobs: ImageJob[]; total: number; page: number; page_size: number }> {
+    try {
+        const params = new URLSearchParams();
+        if (filters?.universe_id) params.append('universe_id', filters.universe_id);
+        if (filters?.element_id) params.append('element_id', filters.element_id);
+        if (filters?.status) params.append('status', filters.status);
+        if (filters?.page) params.append('page', filters.page.toString());
+        if (filters?.page_size) params.append('page_size', filters.page_size.toString());
+
+        const url = `${API_BASE_URL}/api/image/jobs${params.toString() ? '?' + params.toString() : ''}`;
+        const response = await fetch(url, { headers: authHeaders() });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Failed to fetch image jobs:', error);
+        return { jobs: [], total: 0, page: 1, page_size: 20 };
+    }
+}
+
+/**
+ * Get a specific image job by ID.
+ */
+export async function getImageJob(jobId: string): Promise<ImageJob | null> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/image/jobs/${jobId}`, {
+            headers: authHeaders(),
+        });
+        if (!response.ok) {
+            if (response.status === 404) return null;
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Failed to fetch image job ${jobId}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Delete an image job.
+ */
+export async function deleteImageJob(jobId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/image/jobs/${jobId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+}
+
+/**
+ * Get available style presets.
+ */
+export async function getImageStyles(): Promise<StylePreset[]> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/image/styles`, {
+            headers: authHeaders(),
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Failed to fetch image styles:', error);
+        return [];
+    }
+}
+
+/**
+ * Get recommended image sizes.
+ */
+export async function getImageSizes(): Promise<ImageSize[]> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/image/sizes`, {
+            headers: authHeaders(),
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Failed to fetch image sizes:', error);
+        return [];
+    }
+}
+
+/**
+ * Get available image generation providers.
+ */
+export async function getImageProviders(): Promise<{ providers: string[]; default: string }> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/image/providers`, {
+            headers: authHeaders(),
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Failed to fetch image providers:', error);
+        return { providers: ['mock'], default: 'mock' };
+    }
+}

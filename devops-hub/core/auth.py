@@ -8,7 +8,7 @@ import hashlib
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from fastapi import HTTPException, Security, Depends
@@ -94,7 +94,7 @@ class APIKeyManager:
         name: str,
         scopes: List[str] = None,
         expires_in_days: Optional[int] = None,
-    ) -> tuple[str, APIKey]:
+    ) -> Tuple[str, APIKey]:
         """
         Create a new API key.
 

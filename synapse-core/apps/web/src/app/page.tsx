@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   NavBar,
   ControlDashboard,
@@ -12,6 +12,7 @@ import {
   type ActivityItem,
 } from '@/components';
 import { useConversation } from '@/lib/hooks/useConversation';
+import { synapseAPI } from '@/lib/api';
 
 // --- THEME CONFIGURATION (The "Dark Glass" Brand) ---
 // Background: #0a0e17 (Approximated as slate-950)
@@ -42,18 +43,38 @@ const SynapseInterface = () => {
     onError: (error) => console.error('Conversation error:', error),
   });
 
-  // --- MOCK DATA FOR DASHBOARD ---
-  const kpiData: KPIData[] = [
-    { title: 'Total Revenue', value: '$12,450', trend: '+12%', color: 'text-emerald-400' },
-    { title: 'Active Members', value: '1,240', trend: '+5%', color: 'text-cyan-400' },
-    { title: 'Churn Rate', value: '2.1%', trend: '-0.4%', color: 'text-emerald-400' },
-  ];
+  // --- DASHBOARD DATA STATE ---
+  const [kpiData, setKpiData] = useState<KPIData[]>([
+    { title: 'Agent Conversations', value: '...', trend: 'Loading', color: 'text-cyan-400' },
+    { title: 'Content Generated', value: '...', trend: 'Loading', color: 'text-emerald-400' },
+    { title: 'Active Agents', value: '3', trend: 'Operational', color: 'text-amber-400' },
+  ]);
 
-  const activityFeed: ActivityItem[] = [
-    { agent: 'Sentry', action: 'Detected high bounce rate on /pricing', time: '2m ago', type: 'alert' },
-    { agent: 'Scribe', action: 'Drafted "Welcome Back" email sequence', time: '15m ago', type: 'success' },
-    { agent: 'Architect', action: 'Deployed v2.4 of Landing Page', time: '1h ago', type: 'info' },
-  ];
+  const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([
+    { agent: 'SYSTEM', action: 'Loading activity feed...', time: 'Now', type: 'info' },
+  ]);
+
+  // Fetch dashboard metrics
+  const fetchDashboardMetrics = useCallback(async () => {
+    try {
+      const metrics = await synapseAPI.getDashboardMetrics();
+      setKpiData(metrics.kpis);
+      setActivityFeed(metrics.activity_feed);
+    } catch (error) {
+      console.error('Failed to fetch dashboard metrics:', error);
+      // Keep showing loading state or set error state
+    }
+  }, []);
+
+  // Fetch dashboard data on mount and when mode changes to control
+  useEffect(() => {
+    if (mode === 'control') {
+      fetchDashboardMetrics();
+      // Refresh every 30 seconds when on dashboard
+      const interval = setInterval(fetchDashboardMetrics, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [mode, fetchDashboardMetrics]);
 
   // --- HANDLERS ---
   const handleCommandSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

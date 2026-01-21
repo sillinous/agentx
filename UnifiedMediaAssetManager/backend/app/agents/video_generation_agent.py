@@ -87,6 +87,69 @@ class RunwayVideoProvider(VideoProviderBase):
         }
 
 
+class LTXVideoProvider(VideoProviderBase):
+    """LTX-2 provider wrapper for video generation."""
+
+    def __init__(self, api_key: Optional[str] = None):
+        super().__init__(api_key)
+        self._provider = None
+
+    def _get_provider(self):
+        """Lazy-load LTX provider."""
+        if self._provider is None:
+            from app.providers.ltx_provider import LTXProvider
+            self._provider = LTXProvider(api_key=self.api_key)
+        return self._provider
+
+    async def generate_video(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate video using LTX-2.
+        
+        LTX returns video directly (synchronous), so we handle it differently
+        than polling-based providers like Runway.
+        """
+        provider = self._get_provider()
+        
+        generation_type = params.get("generation_type", "text_to_video")
+        
+        if generation_type == "image_to_video":
+            result = await provider.generate_image_to_video(
+                image_uri=params.get("reference_image_url", ""),
+                prompt=params.get("prompt", ""),
+                model=params.get("ltx_model", "ltx-2-pro"),
+                resolution=params.get("ltx_resolution", "1920x1080"),
+                fps=params.get("ltx_fps", 25),
+                duration=params.get("duration", 8),
+                audio_sync=params.get("audio_sync_enabled", False),
+            )
+        else:
+            result = await provider.generate_text_to_video(
+                prompt=params.get("prompt", ""),
+                model=params.get("ltx_model", "ltx-2-pro"),
+                resolution=params.get("ltx_resolution", "1920x1080"),
+                fps=params.get("ltx_fps", 25),
+                duration=params.get("duration", 8),
+                audio_sync=params.get("audio_sync_enabled", False),
+                negative_prompt=params.get("negative_prompt"),
+            )
+        
+        # LTX returns video data directly, not a job ID
+        return {
+            "job_id": result.get("request_id", f"ltx_{uuid.uuid4().hex[:12]}"),
+            "status": "completed",
+            "video_data": result.get("video_data"),
+            "file_size": result.get("file_size"),
+            "ltx_request_id": result.get("request_id"),
+        }
+
+    async def check_status(self, job_id: str) -> Dict[str, Any]:
+        """
+        LTX doesn't have polling - videos are returned immediately.
+        This is a no-op for compatibility.
+        """
+        return {"status": "completed", "progress": 100}
+
+
 class VideoGenerationAgent(BaseAgent):
     """Agent for managing video generation."""
 
@@ -102,14 +165,27 @@ class VideoGenerationAgent(BaseAgent):
             "mock": MockVideoProvider(),
         }
 
-        # Add real provider if configured
+        # Add LTX provider if configured
+        ltx_key = os.environ.get("LTX_API_KEY")
+        if ltx_key and ltx_key != "your-ltx-api-key-here":
+            self.providers["ltx"] = LTXVideoProvider(api_key=ltx_key)
+            logger.info("LTX-2 provider initialized")
+
+        # Add Runway provider if configured
         runway_key = os.environ.get("RUNWAY_API_KEY")
         if runway_key and runway_key != "your-runway-api-key-here":
             self.providers["runway"] = RunwayVideoProvider(api_key=runway_key)
             logger.info("Runway ML provider initialized")
 
         # Set default provider based on mode and availability
-        if provider_mode == "real" and "runway" in self.providers:
+        # Priority: ltx > runway > mock
+        if provider_mode == "ltx" and "ltx" in self.providers:
+            self.default_provider = "ltx"
+        elif provider_mode == "real" and "ltx" in self.providers:
+            self.default_provider = "ltx"
+        elif provider_mode == "runway" and "runway" in self.providers:
+            self.default_provider = "runway"
+        elif provider_mode == "real" and "runway" in self.providers:
             self.default_provider = "runway"
         else:
             self.default_provider = "mock"
@@ -119,7 +195,8 @@ class VideoGenerationAgent(BaseAgent):
     async def process(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """Generate video using configured provider."""
         try:
-            provider_name = inputs.get("provider", self.default_provider)
+            # Use default provider if not explicitly specified (None means use default)
+            provider_name = inputs.get("provider") or self.default_provider
             provider = self.providers.get(provider_name, self.providers["mock"])
 
             result = await provider.generate_video(inputs)

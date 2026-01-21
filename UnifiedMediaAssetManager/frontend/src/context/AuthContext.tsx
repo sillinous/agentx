@@ -42,32 +42,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: false,
     });
 
-    // Load token from localStorage on mount
-    useEffect(() => {
-        const storedToken = localStorage.getItem(TOKEN_KEY);
-        if (storedToken) {
-            // Validate token by fetching current user
-            fetchCurrentUser(storedToken);
-        } else {
-            setState(prev => ({ ...prev, isLoading: false }));
-        }
-    }, []);
-
-    // Listen for auth errors (401) from API calls
-    useEffect(() => {
-        const handleAuthError = () => {
-            // Clear auth state and redirect to login
-            localStorage.removeItem(TOKEN_KEY);
-            setState({ user: null, token: null, isLoading: false, isAuthenticated: false });
-            if (pathname !== '/login' && pathname !== '/register') {
-                router.push('/login');
-            }
-        };
-        window.addEventListener(AUTH_ERROR_EVENT, handleAuthError);
-        return () => window.removeEventListener(AUTH_ERROR_EVENT, handleAuthError);
-    }, [router, pathname]);
-
-    const fetchCurrentUser = async (token: string) => {
+    // Define fetchCurrentUser with useCallback before using it
+    const fetchCurrentUser = useCallback(async (token: string) => {
         try {
             const response = await fetch(`${API_BASE_URL}/auth/me`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -89,7 +65,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.removeItem(TOKEN_KEY);
             setState({ user: null, token: null, isLoading: false, isAuthenticated: false });
         }
-    };
+    }, []);
+
+    // Load token from localStorage on mount
+    useEffect(() => {
+        const storedToken = localStorage.getItem(TOKEN_KEY);
+        if (storedToken) {
+            // Validate token by fetching current user
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            fetchCurrentUser(storedToken);
+        } else {
+            setState(prev => ({ ...prev, isLoading: false }));
+        }
+    }, [fetchCurrentUser]);
+
+    // Listen for auth errors (401) from API calls
+    useEffect(() => {
+        const handleAuthError = () => {
+            // Clear auth state and redirect to login
+            localStorage.removeItem(TOKEN_KEY);
+            setState({ user: null, token: null, isLoading: false, isAuthenticated: false });
+            if (pathname !== '/login' && pathname !== '/register') {
+                router.push('/login');
+            }
+        };
+        window.addEventListener(AUTH_ERROR_EVENT, handleAuthError);
+        return () => window.removeEventListener(AUTH_ERROR_EVENT, handleAuthError);
+    }, [router, pathname]);
 
     const login = useCallback(async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
         try {
@@ -113,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const errorData = await response.json().catch(() => ({}));
                 return { success: false, error: errorData.detail || 'Login failed' };
             }
-        } catch (err) {
+        } catch {
             return { success: false, error: 'Network error. Please try again.' };
         }
     }, []);
@@ -150,7 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const errorData = await response.json().catch(() => ({}));
                 return { success: false, error: errorData.detail || 'Registration failed' };
             }
-        } catch (err) {
+        } catch {
             return { success: false, error: 'Network error. Please try again.' };
         }
     }, []);

@@ -14,6 +14,8 @@ import {
   deleteTrait,
 } from '@/services/api';
 import { useIsClient } from '@/hooks/useIsClient';
+import { useToast } from '@/context/ToastContext';
+import { ConfirmModal } from '@/components/Modal';
 
 interface TraitTemplate {
   key: string;
@@ -28,6 +30,7 @@ export default function EntityTraitsPage() {
   const params = useParams();
   const router = useRouter();
   const { universeId, elementId } = params;
+  const toast = useToast();
 
   const [element, setElement] = useState<Element | null>(null);
   const [traits, setTraits] = useState<EntityTrait[]>([]);
@@ -37,6 +40,11 @@ export default function EntityTraitsPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const isClient = useIsClient();
+
+  // Delete confirmation modal
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [traitToDelete, setTraitToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form state for new trait
   const [showAddForm, setShowAddForm] = useState(false);
@@ -120,7 +128,7 @@ export default function EntityTraitsPage() {
   const handleAddTrait = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTraitKey.trim() || typeof elementId !== 'string') {
-      alert('Trait key is required.');
+      toast.warning('Please provide a trait key.');
       return;
     }
 
@@ -139,7 +147,7 @@ export default function EntityTraitsPage() {
       });
 
       setTraits([...traits, newTrait]);
-      setSuccessMessage('Trait added successfully!');
+      toast.success(`Trait "${newTraitKey}" added successfully`);
 
       // Reset form
       setNewTraitKey('');
@@ -149,7 +157,7 @@ export default function EntityTraitsPage() {
       setNewTraitAiVisible(true);
       setShowAddForm(false);
     } catch (err: any) {
-      setError(err.message || 'Failed to add trait. Please try again.');
+      toast.error(err.message || 'Failed to add trait. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -171,33 +179,34 @@ export default function EntityTraitsPage() {
       });
 
       setTraits(traits.map(t => (t.id === traitId ? updatedTrait : t)));
-      setSuccessMessage('Trait updated successfully!');
+      toast.success('Trait updated successfully');
       setEditingTrait(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to update trait.');
+      toast.error(err.message || 'Failed to update trait.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDeleteTrait = async (traitId: string) => {
-    if (typeof elementId !== 'string') return;
+  const openDeleteModal = (traitId: string) => {
+    setTraitToDelete(traitId);
+    setDeleteModalOpen(true);
+  };
 
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this trait? This action cannot be undone.'
-    );
-
-    if (!confirmed) return;
+  const handleDeleteTrait = async () => {
+    if (typeof elementId !== 'string' || !traitToDelete) return;
 
     try {
-      setIsSaving(true);
-      await deleteTrait(elementId, traitId);
-      setTraits(traits.filter(t => t.id !== traitId));
-      setSuccessMessage('Trait deleted successfully!');
+      setIsDeleting(true);
+      await deleteTrait(elementId, traitToDelete);
+      setTraits(traits.filter(t => t.id !== traitToDelete));
+      toast.success('Trait deleted successfully');
+      setDeleteModalOpen(false);
+      setTraitToDelete(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to delete trait.');
+      toast.error(err.message || 'Failed to delete trait.');
     } finally {
-      setIsSaving(false);
+      setIsDeleting(false);
     }
   };
 
@@ -213,7 +222,7 @@ export default function EntityTraitsPage() {
     setEditingTrait(null);
   };
 
-  const useTemplate = (template: TraitTemplate) => {
+  const applyTemplate = (template: TraitTemplate) => {
     setNewTraitKey(template.key);
     setNewTraitType(template.type);
     setNewTraitCategory(template.category);
@@ -285,7 +294,7 @@ export default function EntityTraitsPage() {
                 templates.map((template, index) => (
                   <button
                     key={index}
-                    onClick={() => useTemplate(template)}
+                    onClick={() => applyTemplate(template)}
                     className="w-full text-left px-3 py-2 border border-gray-200 rounded-md hover:bg-indigo-50 hover:border-indigo-300 transition-colors duration-150"
                   >
                     <div className="font-medium text-sm text-gray-900">{template.label}</div>
@@ -577,7 +586,7 @@ export default function EntityTraitsPage() {
                               Edit
                             </button>
                             <button
-                              onClick={() => handleDeleteTrait(trait.id)}
+                              onClick={() => openDeleteModal(trait.id)}
                               className="text-sm text-red-600 hover:text-red-800 font-medium"
                             >
                               Delete
@@ -603,6 +612,22 @@ export default function EntityTraitsPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setTraitToDelete(null);
+        }}
+        onConfirm={handleDeleteTrait}
+        title="Delete Trait"
+        message="Are you sure you want to delete this trait? This action cannot be undone."
+        confirmText="Delete Trait"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

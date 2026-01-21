@@ -9,7 +9,7 @@ interface PricingCardProps {
   name: string;
   price: number;
   period?: string;
-  features: string[];
+  features: readonly string[];
   featured?: boolean;
   comingSoon?: boolean;
   cta?: string;

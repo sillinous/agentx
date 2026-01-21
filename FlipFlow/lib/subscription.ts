@@ -210,7 +210,7 @@ export async function updateUserSubscription({
   }
 
   const tier = PRICING_TIERS[planId.toUpperCase() as keyof typeof PRICING_TIERS];
-  const credits = tier?.credits || 0;
+  const credits = tier && 'credits' in tier ? tier.credits : 0;
 
   const { error } = await supabase
     .from('users')

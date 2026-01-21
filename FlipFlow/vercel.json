@@ -26,6 +26,8 @@
     "NEXT_PUBLIC_VERCEL_ANALYTICS_ID": "@vercel-analytics-id",
     "SENTRY_DSN": "@sentry-dsn",
     "NEXT_PUBLIC_APP_URL": "@app-url",
+    "CRON_SECRET": "@cron-secret",
+    "WEBHOOK_SECRET": "@webhook-secret",
     "NODE_ENV": "production"
   },
   "build": {
@@ -110,7 +112,11 @@
   "crons": [
     {
       "path": "/api/cron/scrape",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/analyze",
+      "schedule": "0 7 * * *"
     },
     {
       "path": "/api/cron/digest",
