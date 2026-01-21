@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8000"
+    volumes:
+      - ./data:/app/data
+      # Mount parent directory for project scanning
+      # Windows: Use the path below (or WSL: /mnt/c/GitHub/GitHubRoot/sillinous)
+      - C:/GitHub/GitHubRoot/sillinous:/repos:ro
+    environment:
+      - SCAN_PATH=/repos
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3001"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+
+networks:
+  default:
+    name: revenue-radar
