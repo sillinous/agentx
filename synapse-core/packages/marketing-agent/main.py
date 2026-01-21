@@ -39,9 +39,9 @@ PRODUCTION = os.getenv("NODE_ENV", "development") == "production"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG" if DEV_MODE else "INFO")
 LOG_FORMAT = os.getenv("LOG_FORMAT", "json" if PRODUCTION else "text")
 
-# CORS Configuration
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*" if DEV_MODE else "").split(",")
-CORS_ORIGINS = [origin.strip() for origin in CORS_ORIGINS if origin.strip()]
+# CORS Configuration - never default to wildcard
+_cors_env = os.getenv("CORS_ORIGINS", "")
+CORS_ORIGINS = [origin.strip() for origin in _cors_env.split(",") if origin.strip()]
 
 
 # =============================================================================
@@ -108,26 +108,33 @@ logger = setup_logging()
 
 
 def get_user_from_auth(authorization: Optional[str] = None) -> TokenData:
-    """Extract user from auth header, or return dev user in DEV_MODE."""
+    """Extract user from auth header. DEV_MODE only provides helpful error messages."""
     if authorization:
         try:
             token = extract_token_from_header(authorization)
             return decode_access_token(token)
         except Exception as e:
-            if not DEV_MODE:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=f"Invalid authorization: {e}",
-                )
-            logger.warning(f"Invalid auth header in dev mode, using dev user: {e}")
+            # In production, provide minimal error details
+            error_detail = str(e) if DEV_MODE else "Invalid credentials"
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Authentication failed: {error_detail}",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
+    # DEV_MODE no longer bypasses authentication - it only affects error verbosity
+    # Use /auth/dev-token endpoint to get a valid token for development
     if DEV_MODE:
-        # Return a development user
-        return TokenData(user_id="dev-user", email="dev@synapse.local")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization required. Use /auth/dev-token to get a development token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Authorization required",
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
 # Import database utilities for persistence
@@ -259,17 +266,36 @@ _server_start_time = datetime.now(UTC)
 # =============================================================================
 # CORS Configuration (Production-Ready)
 # =============================================================================
+# Default development origins - explicit list, no wildcards
+DEV_CORS_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:3002",
+]
+
+
 def get_cors_origins() -> list:
-    """Get allowed CORS origins based on environment."""
-    if DEV_MODE:
-        # Allow all origins in development
-        return ["*"]
-
-    # In production, use explicit origins from environment
+    """Get allowed CORS origins based on environment. Never allows wildcards."""
+    # Environment variable takes precedence
     if CORS_ORIGINS:
-        return CORS_ORIGINS
+        # Filter out any wildcard entries for security
+        origins = [o for o in CORS_ORIGINS if o != "*"]
+        if len(origins) != len(CORS_ORIGINS):
+            logger.warning("Wildcard (*) CORS origin removed for security")
+        return origins if origins else DEV_CORS_ORIGINS
 
-    # Default production origins
+    if DEV_MODE:
+        # Explicit localhost origins in development - no wildcards
+        return DEV_CORS_ORIGINS
+
+    # Production requires explicit CORS_ORIGINS environment variable
+    logger.warning(
+        "CORS_ORIGINS not configured for production. "
+        "Set CORS_ORIGINS environment variable with allowed domains."
+    )
     return [
         "https://synapse.example.com",
         "https://app.synapse.example.com",

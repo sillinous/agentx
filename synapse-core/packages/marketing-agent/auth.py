@@ -15,9 +15,39 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 # Load configuration from environment
-JWT_SECRET = os.getenv("JWT_SECRET", "development-secret-key-change-in-production")
+JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
+
+# Validate required secrets at startup
+def _validate_jwt_config() -> None:
+    """Validate JWT configuration at module load time."""
+    if not JWT_SECRET:
+        # Allow missing secret only in test environment
+        if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("TESTING") == "true":
+            logger.warning("JWT_SECRET not set - using test fallback (tests only)")
+            return
+        raise RuntimeError(
+            "CRITICAL: JWT_SECRET environment variable is required. "
+            "Set a strong, unique secret for production deployment."
+        )
+    if len(JWT_SECRET) < 32:
+        logger.warning(
+            "JWT_SECRET is less than 32 characters. "
+            "Consider using a longer secret for production."
+        )
+
+_validate_jwt_config()
+
+
+def _get_jwt_secret() -> str:
+    """Get JWT secret, with fallback only for tests."""
+    if JWT_SECRET:
+        return JWT_SECRET
+    # Fallback only for test environment
+    if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("TESTING") == "true":
+        return "test-secret-key-for-unit-tests-only"
+    raise RuntimeError("JWT_SECRET not configured")
 
 
 # --- Pydantic Models ---
@@ -58,7 +88,7 @@ def create_access_token(
         "type": "access_token",
     }
 
-    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    token = jwt.encode(payload, _get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
     logger.info(
         "Access token created",
@@ -93,7 +123,7 @@ def decode_access_token(token: str) -> TokenData:
     )
 
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, _get_jwt_secret(), algorithms=[JWT_ALGORITHM])
 
         user_id: str = payload.get("user_id")
         email: str = payload.get("email")

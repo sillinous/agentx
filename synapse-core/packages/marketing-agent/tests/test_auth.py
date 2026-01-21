@@ -38,7 +38,7 @@ class TestTokenCreation:
         token = create_access_token(user_id, email, subscription_tier)
 
         # Decode without verification to inspect payload
-        secret = os.getenv("JWT_SECRET", "development-secret-key-change-in-production")
+        secret = os.getenv("JWT_SECRET", "test-secret-for-unit-tests-only")
         payload = jwt.decode(token, secret, algorithms=["HS256"])
 
         assert payload["user_id"] == user_id
@@ -66,7 +66,7 @@ class TestTokenDecoding:
     def test_decode_expired_token(self):
         """Test that expired tokens raise an exception"""
         # Create a token that expired 1 hour ago
-        secret = os.getenv("JWT_SECRET", "development-secret-key-change-in-production")
+        secret = os.getenv("JWT_SECRET", "test-secret-for-unit-tests-only")
         expiration = datetime.now(UTC) - timedelta(hours=1)
 
         payload = {
@@ -116,7 +116,7 @@ class TestTokenDecoding:
 
     def test_decode_token_missing_user_id(self):
         """Test that tokens without user_id claim raise an exception"""
-        secret = os.getenv("JWT_SECRET", "development-secret-key-change-in-production")
+        secret = os.getenv("JWT_SECRET", "test-secret-for-unit-tests-only")
         payload = {
             "email": "test@test.com",
             "subscription_tier": "standard",

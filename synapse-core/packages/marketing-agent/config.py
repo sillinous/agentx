@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     # OpenAI Configuration
     openai_api_key: Optional[str] = Field(default=None)
 
-    # JWT Configuration
-    jwt_secret: str = Field(default="development-secret-key-change-in-production")
+    # JWT Configuration - no default secret for security
+    jwt_secret: str = Field(default="")
     jwt_algorithm: str = Field(default="HS256")
     jwt_expiration_hours: int = Field(default=24)
 
@@ -83,8 +83,8 @@ class Settings(BaseSettings):
         errors = []
 
         if self.is_production:
-            if self.jwt_secret == "development-secret-key-change-in-production":
-                errors.append("JWT_SECRET must be changed for production")
+            if not self.jwt_secret or len(self.jwt_secret) < 32:
+                errors.append("JWT_SECRET must be set and at least 32 characters for production")
 
             if not self.openai_api_key:
                 errors.append("OPENAI_API_KEY is required for production")
