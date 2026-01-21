@@ -139,3 +139,70 @@ export interface DashboardMetrics {
   revenue_data: number[];
   timestamp: string;
 }
+
+// Billing types
+export type SubscriptionTier = 'free' | 'standard' | 'enterprise';
+export type BillingPeriod = 'monthly' | 'yearly';
+export type SubscriptionStatusType = 'active' | 'canceled' | 'past_due' | 'trialing' | 'none';
+
+export interface PricingTier {
+  tier: SubscriptionTier;
+  name: string;
+  description: string;
+  price_monthly: number;
+  price_yearly: number;
+  features: string[];
+  stripe_price_monthly: string;
+  stripe_price_yearly: string;
+}
+
+export interface BillingConfig {
+  stripe_configured: boolean;
+  public_key: string | null;
+  pricing_tiers: PricingTier[];
+}
+
+export interface CheckoutSessionRequest {
+  tier: Exclude<SubscriptionTier, 'free'>;
+  billing_period: BillingPeriod;
+  success_url?: string;
+  cancel_url?: string;
+}
+
+export interface CheckoutSessionResponse {
+  session_id: string;
+  checkout_url: string;
+  tier: string;
+  billing_period: string;
+}
+
+export interface SubscriptionStatus {
+  user_id: string;
+  tier: SubscriptionTier;
+  status: SubscriptionStatusType;
+  stripe_customer_id?: string;
+  stripe_subscription_id?: string;
+  current_period_start?: string;
+  current_period_end?: string;
+  cancel_at_period_end: boolean;
+}
+
+export interface Invoice {
+  id: string;
+  amount_paid: number;
+  currency: string;
+  status: string;
+  invoice_pdf: string | null;
+  created: string;
+  period_start: string;
+  period_end: string;
+}
+
+export interface InvoicesResponse {
+  invoices: Invoice[];
+  count: number;
+}
+
+export interface BillingPortalResponse {
+  portal_url: string;
+}

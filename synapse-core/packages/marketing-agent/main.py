@@ -209,6 +209,10 @@ OPENAPI_TAGS = [
         "name": "Dashboard",
         "description": "Dashboard metrics and KPIs",
     },
+    {
+        "name": "Billing",
+        "description": "Subscription management, checkout, and payment endpoints",
+    },
 ]
 
 # Initialize FastAPI app with comprehensive OpenAPI documentation
@@ -1497,6 +1501,474 @@ async def get_dashboard_metrics(
         revenue_data=revenue_data,
         timestamp=datetime.now(UTC).isoformat(),
     )
+
+
+# =============================================================================
+# Billing & Subscription Endpoints
+# =============================================================================
+
+# Import Stripe service
+try:
+    from stripe_service import (
+        is_stripe_configured,
+        get_pricing_tiers,
+        get_price_id,
+        get_or_create_customer,
+        create_checkout_session,
+        get_subscription_status,
+        update_subscription,
+        cancel_subscription,
+        reactivate_subscription,
+        create_billing_portal_session,
+        get_invoices,
+        verify_webhook_signature,
+        process_webhook_event,
+        StripeEvents,
+        CheckoutSessionRequest,
+        CheckoutSessionResponse,
+        SubscriptionStatus,
+        SubscriptionUpdate,
+        BillingPortalRequest,
+        PricingTier,
+        Invoice,
+    )
+    BILLING_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Stripe service not available: {e}")
+    BILLING_AVAILABLE = False
+
+
+class BillingConfigResponse(BaseModel):
+    """Billing configuration response."""
+    stripe_configured: bool
+    public_key: Optional[str] = None
+    pricing_tiers: list[dict] = []
+
+
+@app.get("/billing/config", response_model=BillingConfigResponse, tags=["Billing"])
+async def get_billing_config():
+    """
+    Get billing configuration including pricing tiers.
+    This endpoint is public (no auth required) for displaying pricing page.
+    """
+    if not BILLING_AVAILABLE:
+        return BillingConfigResponse(
+            stripe_configured=False,
+            pricing_tiers=[],
+        )
+
+    from stripe_service import STRIPE_PUBLIC_KEY
+
+    tiers = get_pricing_tiers() if is_stripe_configured() else []
+
+    return BillingConfigResponse(
+        stripe_configured=is_stripe_configured(),
+        public_key=STRIPE_PUBLIC_KEY if is_stripe_configured() else None,
+        pricing_tiers=[tier.model_dump() for tier in tiers],
+    )
+
+
+@app.post("/billing/checkout", response_model=CheckoutSessionResponse, tags=["Billing"])
+@limiter.limit(RATE_LIMIT_AUTH)
+async def create_checkout(
+    request: CheckoutSessionRequest,
+    fastapi_request: Request,
+    authorization: str = Header(...),
+):
+    """
+    Create a Stripe Checkout session for subscription purchase.
+    Requires authentication. Redirects user to Stripe-hosted checkout page.
+    """
+    if not BILLING_AVAILABLE or not is_stripe_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Billing is not configured",
+        )
+
+    token = extract_token_from_header(authorization)
+    token_data = decode_access_token(token)
+
+    try:
+        # Get or create Stripe customer
+        # In production, you'd fetch the user's stripe_customer_id from database
+        customer_id = get_or_create_customer(
+            user_id=token_data.user_id,
+            email=token_data.email or f"{token_data.user_id}@synapse.local",
+        )
+
+        # Get the price ID for the requested tier and billing period
+        price_id = get_price_id(request.tier, request.billing_period)
+
+        if not price_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Price not configured for {request.tier} {request.billing_period}",
+            )
+
+        # Create checkout session
+        checkout = create_checkout_session(
+            customer_id=customer_id,
+            price_id=price_id,
+            success_url=request.success_url,
+            cancel_url=request.cancel_url,
+            metadata={
+                "user_id": token_data.user_id,
+                "tier": request.tier,
+                "billing_period": request.billing_period,
+            },
+        )
+
+        logger.info(
+            "Checkout session created",
+            extra={
+                "user_id": token_data.user_id,
+                "tier": request.tier,
+                "session_id": checkout.session_id,
+            },
+        )
+
+        return checkout
+
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Checkout creation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create checkout session",
+        )
+
+
+@app.get("/billing/subscription", response_model=SubscriptionStatus, tags=["Billing"])
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def get_subscription(
+    fastapi_request: Request,
+    authorization: str = Header(...),
+):
+    """
+    Get current subscription status for the authenticated user.
+    """
+    if not BILLING_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Billing is not configured",
+        )
+
+    token = extract_token_from_header(authorization)
+    token_data = decode_access_token(token)
+
+    # In production, you'd fetch the user's stripe_customer_id from database
+    # For now, we'll try to find by email
+    if is_stripe_configured():
+        try:
+            customer_id = get_or_create_customer(
+                user_id=token_data.user_id,
+                email=token_data.email or f"{token_data.user_id}@synapse.local",
+            )
+            return get_subscription_status(customer_id, token_data.user_id)
+        except Exception as e:
+            logger.error(f"Error fetching subscription: {e}")
+
+    # Return free tier if no subscription found
+    return SubscriptionStatus(
+        user_id=token_data.user_id,
+        tier="free",
+        status="none",
+    )
+
+
+@app.post("/billing/subscription/cancel", tags=["Billing"])
+@limiter.limit(RATE_LIMIT_AUTH)
+async def cancel_user_subscription(
+    fastapi_request: Request,
+    authorization: str = Header(...),
+    immediately: bool = False,
+):
+    """
+    Cancel the user's subscription.
+    By default, cancels at period end. Set immediately=true to cancel now.
+    """
+    if not BILLING_AVAILABLE or not is_stripe_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Billing is not configured",
+        )
+
+    token = extract_token_from_header(authorization)
+    token_data = decode_access_token(token)
+
+    try:
+        # Get subscription status
+        customer_id = get_or_create_customer(
+            user_id=token_data.user_id,
+            email=token_data.email or f"{token_data.user_id}@synapse.local",
+        )
+        sub_status = get_subscription_status(customer_id, token_data.user_id)
+
+        if not sub_status.stripe_subscription_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No active subscription found",
+            )
+
+        result = cancel_subscription(
+            subscription_id=sub_status.stripe_subscription_id,
+            cancel_immediately=immediately,
+        )
+
+        logger.info(
+            "Subscription canceled",
+            extra={
+                "user_id": token_data.user_id,
+                "subscription_id": sub_status.stripe_subscription_id,
+                "immediately": immediately,
+            },
+        )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Subscription cancellation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to cancel subscription",
+        )
+
+
+@app.post("/billing/subscription/reactivate", tags=["Billing"])
+@limiter.limit(RATE_LIMIT_AUTH)
+async def reactivate_user_subscription(
+    fastapi_request: Request,
+    authorization: str = Header(...),
+):
+    """
+    Reactivate a subscription that was set to cancel at period end.
+    """
+    if not BILLING_AVAILABLE or not is_stripe_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Billing is not configured",
+        )
+
+    token = extract_token_from_header(authorization)
+    token_data = decode_access_token(token)
+
+    try:
+        customer_id = get_or_create_customer(
+            user_id=token_data.user_id,
+            email=token_data.email or f"{token_data.user_id}@synapse.local",
+        )
+        sub_status = get_subscription_status(customer_id, token_data.user_id)
+
+        if not sub_status.stripe_subscription_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No subscription found to reactivate",
+            )
+
+        result = reactivate_subscription(sub_status.stripe_subscription_id)
+
+        logger.info(
+            "Subscription reactivated",
+            extra={
+                "user_id": token_data.user_id,
+                "subscription_id": sub_status.stripe_subscription_id,
+            },
+        )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Subscription reactivation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reactivate subscription",
+        )
+
+
+@app.post("/billing/portal", tags=["Billing"])
+@limiter.limit(RATE_LIMIT_AUTH)
+async def create_portal_session(
+    request: BillingPortalRequest,
+    fastapi_request: Request,
+    authorization: str = Header(...),
+):
+    """
+    Create a Stripe billing portal session for self-service management.
+    Allows users to update payment methods, view invoices, etc.
+    """
+    if not BILLING_AVAILABLE or not is_stripe_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Billing is not configured",
+        )
+
+    token = extract_token_from_header(authorization)
+    token_data = decode_access_token(token)
+
+    try:
+        customer_id = get_or_create_customer(
+            user_id=token_data.user_id,
+            email=token_data.email or f"{token_data.user_id}@synapse.local",
+        )
+
+        portal_url = create_billing_portal_session(
+            customer_id=customer_id,
+            return_url=request.return_url,
+        )
+
+        return {"portal_url": portal_url}
+
+    except Exception as e:
+        logger.error(f"Portal session creation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create portal session",
+        )
+
+
+@app.get("/billing/invoices", tags=["Billing"])
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def get_user_invoices(
+    fastapi_request: Request,
+    authorization: str = Header(...),
+    limit: int = 10,
+):
+    """
+    Get billing history (invoices) for the authenticated user.
+    """
+    if not BILLING_AVAILABLE or not is_stripe_configured():
+        return {"invoices": [], "message": "Billing not configured"}
+
+    token = extract_token_from_header(authorization)
+    token_data = decode_access_token(token)
+
+    try:
+        customer_id = get_or_create_customer(
+            user_id=token_data.user_id,
+            email=token_data.email or f"{token_data.user_id}@synapse.local",
+        )
+
+        invoices = get_invoices(customer_id, limit)
+
+        return {
+            "invoices": [inv.model_dump() for inv in invoices],
+            "count": len(invoices),
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching invoices: {e}")
+        return {"invoices": [], "error": str(e)}
+
+
+# =============================================================================
+# Stripe Webhook Handler
+# =============================================================================
+
+@app.post("/webhook/stripe", tags=["Billing"])
+async def stripe_webhook(request: Request):
+    """
+    Handle Stripe webhook events.
+    This endpoint must be publicly accessible (no auth) but uses signature verification.
+    """
+    if not BILLING_AVAILABLE or not is_stripe_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Billing is not configured",
+        )
+
+    # Get the raw body and signature
+    payload = await request.body()
+    signature = request.headers.get("Stripe-Signature")
+
+    if not signature:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing Stripe-Signature header",
+        )
+
+    try:
+        # Verify webhook signature
+        event = verify_webhook_signature(payload, signature)
+        webhook_event = process_webhook_event(event)
+
+        # Handle different event types
+        event_type = webhook_event.event_type
+
+        if event_type == StripeEvents.CHECKOUT_COMPLETED:
+            # Checkout completed - subscription created
+            logger.info(
+                "Checkout completed",
+                extra={
+                    "customer_id": webhook_event.customer_id,
+                    "subscription_id": webhook_event.subscription_id,
+                },
+            )
+            # TODO: Update user's subscription in database
+            # TODO: Send welcome email
+
+        elif event_type == StripeEvents.SUBSCRIPTION_UPDATED:
+            # Subscription updated (tier change, etc.)
+            logger.info(
+                "Subscription updated",
+                extra={
+                    "customer_id": webhook_event.customer_id,
+                    "subscription_id": webhook_event.subscription_id,
+                },
+            )
+            # TODO: Sync subscription tier to database
+
+        elif event_type == StripeEvents.SUBSCRIPTION_DELETED:
+            # Subscription canceled
+            logger.info(
+                "Subscription deleted",
+                extra={
+                    "customer_id": webhook_event.customer_id,
+                    "subscription_id": webhook_event.subscription_id,
+                },
+            )
+            # TODO: Downgrade user to free tier in database
+
+        elif event_type == StripeEvents.INVOICE_PAID:
+            # Payment successful
+            logger.info(
+                "Invoice paid",
+                extra={"customer_id": webhook_event.customer_id},
+            )
+            # TODO: Record payment transaction
+
+        elif event_type == StripeEvents.INVOICE_PAYMENT_FAILED:
+            # Payment failed
+            logger.warning(
+                "Invoice payment failed",
+                extra={"customer_id": webhook_event.customer_id},
+            )
+            # TODO: Notify user, possibly downgrade after grace period
+
+        else:
+            logger.info(
+                "Unhandled webhook event",
+                extra={"event_type": event_type},
+            )
+
+        return {"received": True, "event_type": event_type}
+
+    except ValueError as e:
+        logger.error(f"Webhook signature verification failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid webhook signature",
+        )
+    except Exception as e:
+        logger.error(f"Webhook processing failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Webhook processing failed",
+        )
 
 
 # --- Main Entry Point ---

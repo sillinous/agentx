@@ -10,6 +10,14 @@ import type {
   APIError,
   StreamEvent,
   DashboardMetrics,
+  BillingConfig,
+  CheckoutSessionRequest,
+  CheckoutSessionResponse,
+  SubscriptionStatus,
+  InvoicesResponse,
+  BillingPortalResponse,
+  BillingPeriod,
+  SubscriptionTier,
 } from './types';
 
 // API base URL - uses Next.js API routes as proxy
@@ -164,6 +172,62 @@ export const synapseAPI = {
   // Get dashboard metrics
   async getDashboardMetrics(): Promise<DashboardMetrics> {
     return fetchAPI<DashboardMetrics>('/dashboard/metrics');
+  },
+
+  // ===================
+  // Billing Endpoints
+  // ===================
+
+  // Get billing configuration (public - no auth required)
+  async getBillingConfig(): Promise<BillingConfig> {
+    return fetchAPI<BillingConfig>('/billing/config');
+  },
+
+  // Create checkout session for subscription
+  async createCheckoutSession(
+    tier: Exclude<SubscriptionTier, 'free'>,
+    billingPeriod: BillingPeriod = 'monthly'
+  ): Promise<CheckoutSessionResponse> {
+    return fetchAPI<CheckoutSessionResponse>('/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({
+        tier,
+        billing_period: billingPeriod,
+      }),
+    });
+  },
+
+  // Get current subscription status
+  async getSubscriptionStatus(): Promise<SubscriptionStatus> {
+    return fetchAPI<SubscriptionStatus>('/billing/subscription');
+  },
+
+  // Cancel subscription
+  async cancelSubscription(immediately: boolean = false): Promise<{ subscription_id: string; status: string; cancel_at_period_end: boolean }> {
+    return fetchAPI('/billing/subscription/cancel', {
+      method: 'POST',
+      body: JSON.stringify({ immediately }),
+    });
+  },
+
+  // Reactivate subscription (if set to cancel at period end)
+  async reactivateSubscription(): Promise<{ subscription_id: string; status: string; cancel_at_period_end: boolean }> {
+    return fetchAPI('/billing/subscription/reactivate', {
+      method: 'POST',
+    });
+  },
+
+  // Get billing portal URL
+  async getBillingPortal(returnUrl?: string): Promise<BillingPortalResponse> {
+    return fetchAPI<BillingPortalResponse>('/billing/portal', {
+      method: 'POST',
+      body: JSON.stringify({ return_url: returnUrl }),
+    });
+  },
+
+  // Get invoices
+  async getInvoices(limit: number = 10): Promise<InvoicesResponse> {
+    return fetchAPI<InvoicesResponse>(`/billing/invoices?limit=${limit}`);
   },
 };
 
